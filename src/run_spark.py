@@ -47,6 +47,14 @@ def main():
         .config("spark.driver.memory", args.driver_memory)
         .config("spark.sql.shuffle.partitions", partitions)
         .config("spark.sql.adaptive.enabled", "true")
+        # Environment fix, recorded in DECISIONS.md: with the default 1 MB
+        # direct-result limit, task results on this VM are fetched through
+        # the block manager, and that fetch stalls until the 120 s shuffle
+        # connection timeout kills the job (thread-dump evidence on file in
+        # the build record). Returning task results directly removes the
+        # fetch from the path; the SQL and the timing definition do not
+        # change.
+        .config("spark.task.maxDirectResultSize", "512MB")
         .config("spark.driver.host", "127.0.0.1")
         .config("spark.driver.bindAddress", "127.0.0.1")
         .config("spark.ui.enabled", "false")
