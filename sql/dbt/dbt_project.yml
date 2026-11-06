@@ -1,0 +1,23 @@
+name: data_engineering_scale_lab
+version: 1.0.0
+config-version: 2
+profile: desl
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target"]
+
+vars:
+  data_dir: ""
+  delta_dir: ""
+  affected_dates_path: ""
+
+models:
+  data_engineering_scale_lab:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: table
+    marts:
+      +materialized: table

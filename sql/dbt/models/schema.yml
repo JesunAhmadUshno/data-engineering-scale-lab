@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: "Staging view over the shared orders Parquet files, with the late delta merged when delta_dir is set."
+    columns:
+      - name: o_orderkey
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_lineitem
+    description: "Staging view over the shared lineitem Parquet files, with the late delta merged when delta_dir is set. The delta wins on (l_orderkey, l_linenumber)."
+    columns:
+      - name: l_orderkey
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: o_orderkey
