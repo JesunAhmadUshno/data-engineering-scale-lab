@@ -31,17 +31,16 @@ jobs:
 
       - name: Install the DuckDB tpch extension from the official extension repository
         run: |
+          # The extension CDN rejects the default Python user agent (403);
+          # curl fetches the same official file. Placing it in the local
+          # extension directory lets LOAD tpch work without DuckDB's own
+          # HTTP path.
+          V=$(python -c "import duckdb; print(duckdb.__version__)")
+          DEST="$HOME/.duckdb/extensions/v$V/linux_amd64"
+          mkdir -p "$DEST"
+          curl -fsSL "https://extensions.duckdb.org/v$V/linux_amd64/tpch.duckdb_extension.gz" | gunzip > "$DEST/tpch.duckdb_extension"
           python - <<'EOF'
-          import duckdb, pathlib
-          # Installing into the local extension directory avoids DuckDB's
-          # own HTTP path; the file comes from extensions.duckdb.org.
-          import urllib.request, gzip, io
-          v = duckdb.__version__
-          url = f"https://extensions.duckdb.org/v{v}/linux_amd64/tpch.duckdb_extension.gz"
-          dest = pathlib.Path.home() / ".duckdb" / "extensions" / f"v{v}" / "linux_amd64"
-          dest.mkdir(parents=True, exist_ok=True)
-          data = urllib.request.urlopen(url).read()
-          (dest / "tpch.duckdb_extension").write_bytes(gzip.decompress(data))
+          import duckdb
           con = duckdb.connect()
           con.execute("LOAD tpch")
           con.execute("CALL dbgen(sf=0.001)")
