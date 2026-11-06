@@ -27,11 +27,17 @@ BLOCKING = ["F01", "F02", "F03", "F04", "F05", "F06", "F07", "F09"]
 
 
 def test_statuses(results):
+    import re
+
     out = {}
     for r in results.get("results", []):
         uid = r.get("unique_id", "")
         if uid.startswith("test."):
-            name = uid.split(".")[-1]
+            parts = uid.split(".")
+            if len(parts) >= 4 and re.fullmatch(r"[0-9a-f]{10}", parts[-1]):
+                name = parts[-2]
+            else:
+                name = parts[-1]
             out[name] = r.get("status")
     return out
 
@@ -101,8 +107,15 @@ def main():
         print(json.dumps({k: row[k] for k in ("scenario", "gate_pass", "promoted",
                                               "flagged_stale", "caught")}), flush=True)
 
-    with log_path.open("a") as f:
-        for row in rows:
+    done = {r["scenario"] for r in rows}
+    kept = []
+    if log_path.exists():
+        for line in log_path.read_text().splitlines():
+            old = json.loads(line)
+            if old.get("scenario") not in done:
+                kept.append(old)
+    with log_path.open("w") as f:
+        for row in kept + rows:
             f.write(json.dumps(row) + "\n")
     caught = sum(1 for r in rows if r["caught"])
     print(f"gate scenarios done; caught {caught} of {len(rows) - 1} faults (F08 scored separately)")

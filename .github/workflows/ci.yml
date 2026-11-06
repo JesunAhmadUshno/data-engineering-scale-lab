@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sf01-checksum-gate:
+    name: SF0.1 checksum gate (python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install the DuckDB tpch extension from the official extension repository
+        run: |
+          python - <<'EOF'
+          import duckdb, pathlib
+          # Installing into the local extension directory avoids DuckDB's
+          # own HTTP path; the file comes from extensions.duckdb.org.
+          import urllib.request, gzip, io
+          v = duckdb.__version__
+          url = f"https://extensions.duckdb.org/v{v}/linux_amd64/tpch.duckdb_extension.gz"
+          dest = pathlib.Path.home() / ".duckdb" / "extensions" / f"v{v}" / "linux_amd64"
+          dest.mkdir(parents=True, exist_ok=True)
+          data = urllib.request.urlopen(url).read()
+          (dest / "tpch.duckdb_extension").write_bytes(gzip.decompress(data))
+          con = duckdb.connect()
+          con.execute("LOAD tpch")
+          con.execute("CALL dbgen(sf=0.001)")
+          print("tpch extension OK", con.execute("SELECT COUNT(*) FROM lineitem").fetchone())
+          EOF
+
+      - name: SQL parity (U-07)
+        run: python src/check_sql_parity.py
+
+      - name: Full SF0.1 gate (U-10)
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+        run: make ci-check PY=python

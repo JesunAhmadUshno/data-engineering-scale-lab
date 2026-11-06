@@ -1,3 +1,4 @@
+-- depends_on: {{ ref('delta_dates') }}
 {{ config(materialized='incremental', unique_key='order_date') }}
 SELECT o.o_orderdate AS order_date, COUNT(DISTINCT l.l_orderkey) AS orders_count, COUNT(*) AS line_count, SUM(l.l_extendedprice * (1 - l.l_discount)) AS gross_revenue, SUM(l.l_extendedprice * (1 - l.l_discount) * (1 + l.l_tax)) AS net_revenue
 FROM {{ ref('stg_lineitem') }} l

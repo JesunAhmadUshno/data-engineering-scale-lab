@@ -1,0 +1,12 @@
+{
+  "python": "3.12.3",
+  "duckdb": "2.0.0",
+  "dbt_core": "1.12.6",
+  "dbt_duckdb": "1.11.1",
+  "spark": "4.0.1",
+  "py4j": "0.10.9.9",
+  "java": "openjdk version \"21.0.13\" 2026-10-20 LTS",
+  "java_install": "Eclipse Temurin 21 tarball from api.adoptium.net, installed at ~/workspace/tools/jdk-21 (outside the repo)",
+  "duckdb_tpch_extension": "official extension build for DuckDB v2.0.0 linux_amd64, from extensions.duckdb.org, placed in the local extension directory",
+  "pyspark_install": "PyPI sdist pyspark-4.0.1.tar.gz, sha256 9d1f22d994f60369228397e3479003ffe2dd736ba79165003246ff7bd48e2c73 (matches the PyPI record), fetched in HTTP range chunks under the egress proxy per-response cap and hash-verified before install"
+}

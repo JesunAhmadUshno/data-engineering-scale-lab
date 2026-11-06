@@ -23,7 +23,8 @@ from common import ROOT, data_dir, log_run, sf_label  # noqa: E402
 from spec import DBT_MODELS, TRANSFORMATIONS  # noqa: E402
 
 DBT_DIR = ROOT / "sql" / "dbt"
-VENV_BIN = Path.home() / "workspace" / "gap-closure" / "venv-b2" / "bin"
+_LOCAL_VENV_BIN = Path.home() / "workspace" / "gap-closure" / "venv-b2" / "bin"
+DBT_BIN = shutil.which("dbt") or str(_LOCAL_VENV_BIN / "dbt")
 
 
 def dbt_env(db_path):
@@ -34,8 +35,8 @@ def dbt_env(db_path):
 
 
 def run_dbt(args_list, db_path, vars_dict):
-    cmd = [str(VENV_BIN / "dbt")] + args_list + ["--project-dir", str(DBT_DIR),
-                                                "--vars", json.dumps(vars_dict)]
+    cmd = [DBT_BIN] + args_list + ["--project-dir", str(DBT_DIR),
+                                   "--vars", json.dumps(vars_dict)]
     proc = subprocess.run(cmd, env=dbt_env(db_path), capture_output=True, text=True)
     results_file = DBT_DIR / "target" / "run_results.json"
     results = json.loads(results_file.read_text()) if results_file.exists() else {"results": []}
