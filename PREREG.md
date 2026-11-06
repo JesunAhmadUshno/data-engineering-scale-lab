@@ -240,3 +240,16 @@ claim about production Spark or any cloud system.
 
 None at registration time. Deviations will be appended here with date,
 reason, and effect on the conclusion.
+
+Deviation 1 (2026-11-06, measurement procedure): one uncounted warm-up
+pass per engine arm per scale was added before the five measured runs.
+Reason: in the first SF0.1 Spark run set, run 1 of every cell carried
+one-time JVM costs (JIT, code generation, class loading) and ran 3 to 10
+times slower than runs 2 to 5, pushing cell CVs to 34 to 145 percent,
+past the 30 percent usability line in Section 7. The cause was found, as
+Section 7 requires, before re-running. Effect on the conclusion: the
+measured runs are steady-state execution times. Cold-start cost is not
+hidden: session setup overhead is still measured and reported separately
+(25.3 s for the Spark session at SF0.1), and the pre-refinement run log
+is kept at results/run_log_pre_warmup.jsonl. The five-run count, the
+cells, and the thresholds do not change.

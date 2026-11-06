@@ -74,6 +74,20 @@ def main():
     for table in ("lineitem", "orders"):
         spark.read.parquet(str(base / table)).createOrReplaceTempView(table)
 
+    # One uncounted warm-up pass (protocol refinement, see PREREG.md
+    # deviations): the first pass on a fresh JVM carries JIT, codegen and
+    # class-loading costs that are not transformation execution. Cold-start
+    # cost is reported separately as setup overhead.
+    warm_dir = out_root / "warmup"
+    warm_dir.mkdir(parents=True, exist_ok=True)
+    for spec in TRANSFORMATIONS:
+        sql = (ROOT / spec["sql"]).read_text().strip().rstrip(";")
+        out_path = str(warm_dir / f"{spec['key']}.parquet")
+        spark.sql(sql).write.mode("overwrite").parquet(out_path)
+        if spec["output"] in ("lineitem_orders", "daily_sales", "ranked_sales"):
+            spark.read.parquet(out_path).createOrReplaceTempView(spec["output"])
+    print("warm-up pass done (uncounted)", flush=True)
+
     for run in range(1, args.runs + 1):
         run_dir = out_root / f"run{run}"
         run_dir.mkdir(parents=True, exist_ok=True)
