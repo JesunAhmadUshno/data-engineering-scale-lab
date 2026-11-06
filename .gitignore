@@ -1,7 +1,13 @@
-data/
+# Generated data and outputs are reproducible from the committed code and
+# are never committed. The generator sources under data/gen/ ARE source
+# and stay tracked; only the generated scale directories are ignored.
+data/sf*/
+data/faults/
 outputs/
 *.duckdb
 __pycache__/
 sql/dbt/target/
 sql/dbt/dbt_packages/
 .venv/
+data/.tmp*/
+*.duckdb.wal
