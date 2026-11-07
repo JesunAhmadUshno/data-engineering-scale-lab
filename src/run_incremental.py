@@ -14,11 +14,14 @@ Scenarios:
 - S3b: like S3, but the late rows are appended to the staging input files
   themselves instead of arriving through the delta variables.
 
-Results are appended to results/incremental_log.jsonl. mart checksums are
-also written into results/checksums.json under arm "dbt_incremental".
+Results are appended to results/incremental_log.jsonl, one row per phase,
+written as soon as the phase completes (DECISIONS.md D16). With --only,
+a subset of phases runs; the phases are independent given the delta
+files, so a scale can be executed phase by phase.
 
 Usage:
     python src/run_incremental.py --sf 0.1
+    python src/run_incremental.py --sf 10 --only S3
 """
 
 import argparse
@@ -81,7 +84,10 @@ def build_appended_dir(sf):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sf", type=float, required=True)
+    ap.add_argument("--only", default="",
+                    help="comma-separated phase subset: full_refresh,S1,S2,S3,S3b")
     args = ap.parse_args()
+    only = {p.strip() for p in args.only.split(",") if p.strip()} or None
     sf = args.sf
     base = data_dir(sf)
     delta = base / "delta"
@@ -104,71 +110,78 @@ def main():
         if extra:
             row.update(extra)
         rows.append(row)
+        with (RESULTS / "incremental_log.jsonl").open("a") as f:
+            f.write(json.dumps(row) + "\n")
         print(json.dumps({"scenario": scenario,
                           "t3": sums["t3"][0][:12], "t4": sums["t4"][0][:12]}), flush=True)
         return row
 
+    def wanted(name):
+        return only is None or name in only
+
     # Full-refresh comparator on base plus delta.
-    db_full = work / "full_refresh.duckdb"
-    if db_full.exists():
-        db_full.unlink()
-    proc, results = run_dbt(["build", "--full-refresh"], db_full, vars_full)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    full_times = model_times(results)
-    full_sums = mart_checksums(db_full, exp_root / "full_refresh")
-    record("full_refresh", full_sums,
-           {"model_seconds": {MARTS[k]: full_times.get(MARTS[k]) for k in MARTS}})
+    if wanted("full_refresh"):
+        db_full = work / "full_refresh.duckdb"
+        if db_full.exists():
+            db_full.unlink()
+        proc, results = run_dbt(["build", "--full-refresh"], db_full, vars_full)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        full_times = model_times(results)
+        full_sums = mart_checksums(db_full, exp_root / "full_refresh")
+        record("full_refresh", full_sums,
+               {"model_seconds": {MARTS[k]: full_times.get(MARTS[k]) for k in MARTS}})
 
     # S1: delta present before the run (control).
-    db_s1 = work / "s1.duckdb"
-    if db_s1.exists():
-        db_s1.unlink()
-    proc, _ = run_dbt(["build"], db_s1, vars_full)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    record("S1", mart_checksums(db_s1, exp_root / "s1"))
+    if wanted("S1"):
+        db_s1 = work / "s1.duckdb"
+        if db_s1.exists():
+            db_s1.unlink()
+        proc, _ = run_dbt(["build"], db_s1, vars_full)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        record("S1", mart_checksums(db_s1, exp_root / "s1"))
 
     # S2: staging runs on base; delta arrives; the rest of the build picks it up.
-    db_s2 = work / "s2.duckdb"
-    if db_s2.exists():
-        db_s2.unlink()
-    proc, _ = run_dbt(["run", "--select", "stg_lineitem", "stg_orders"], db_s2, vars_base)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    proc, _ = run_dbt(["build"], db_s2, vars_full)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    record("S2", mart_checksums(db_s2, exp_root / "s2"))
+    if wanted("S2"):
+        db_s2 = work / "s2.duckdb"
+        if db_s2.exists():
+            db_s2.unlink()
+        proc, _ = run_dbt(["run", "--select", "stg_lineitem", "stg_orders"], db_s2, vars_base)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        proc, _ = run_dbt(["build"], db_s2, vars_full)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        record("S2", mart_checksums(db_s2, exp_root / "s2"))
 
     # S3: full base run completes; delta arrives; a fresh run merges it.
-    db_s3 = work / "s3.duckdb"
-    if db_s3.exists():
-        db_s3.unlink()
-    proc, _ = run_dbt(["build"], db_s3, vars_base)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    pre_sums = mart_checksums(db_s3, exp_root / "s3_pre")
-    proc, results = run_dbt(["run"], db_s3, vars_full)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    inc_times = model_times(results)
-    record("S3", mart_checksums(db_s3, exp_root / "s3"),
-           {"pre_delta_checksums": {k: v[0] for k, v in pre_sums.items()},
-            "model_seconds": {MARTS[k]: inc_times.get(MARTS[k]) for k in MARTS}})
+    if wanted("S3"):
+        db_s3 = work / "s3.duckdb"
+        if db_s3.exists():
+            db_s3.unlink()
+        proc, _ = run_dbt(["build"], db_s3, vars_base)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        pre_sums = mart_checksums(db_s3, exp_root / "s3_pre")
+        proc, results = run_dbt(["run"], db_s3, vars_full)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        inc_times = model_times(results)
+        record("S3", mart_checksums(db_s3, exp_root / "s3"),
+               {"pre_delta_checksums": {k: v[0] for k, v in pre_sums.items()},
+                "model_seconds": {MARTS[k]: inc_times.get(MARTS[k]) for k in MARTS}})
 
     # S3b: the late rows are appended to the input files themselves.
-    appended = build_appended_dir(sf)
-    vars_app = dict(vars_appended)
-    vars_app["data_dir"] = appended.as_posix()
-    db_s3b = work / "s3b.duckdb"
-    if db_s3b.exists():
-        db_s3b.unlink()
-    proc, _ = run_dbt(["build"], db_s3b, vars_base)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    proc, results = run_dbt(["run"], db_s3b, vars_app)
-    assert proc.returncode == 0, proc.stdout[-2000:]
-    inc_times_b = model_times(results)
-    record("S3b", mart_checksums(db_s3b, exp_root / "s3b"),
-           {"model_seconds": {MARTS[k]: inc_times_b.get(MARTS[k]) for k in MARTS}})
+    if wanted("S3b"):
+        appended = build_appended_dir(sf)
+        vars_app = dict(vars_appended)
+        vars_app["data_dir"] = appended.as_posix()
+        db_s3b = work / "s3b.duckdb"
+        if db_s3b.exists():
+            db_s3b.unlink()
+        proc, _ = run_dbt(["build"], db_s3b, vars_base)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        proc, results = run_dbt(["run"], db_s3b, vars_app)
+        assert proc.returncode == 0, proc.stdout[-2000:]
+        inc_times_b = model_times(results)
+        record("S3b", mart_checksums(db_s3b, exp_root / "s3b"),
+               {"model_seconds": {MARTS[k]: inc_times_b.get(MARTS[k]) for k in MARTS}})
 
-    with (RESULTS / "incremental_log.jsonl").open("a") as f:
-        for row in rows:
-            f.write(json.dumps(row) + "\n")
     print("incremental scenarios done for sf", sf)
 
 

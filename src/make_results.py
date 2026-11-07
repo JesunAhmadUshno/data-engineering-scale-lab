@@ -340,7 +340,9 @@ def main():
                        if (arm, sf, t) in stats and stats[(arm, sf, t)]["cv"] > 30]
             if cv_flag:
                 out += ["", f"Cells above the pre-registered 30% CV line: {', '.join(cv_flag)}. "
-                        "Recorded as PREREG.md Deviation 2 (every run in these cells is under 150 ms, where timer and scheduler jitter is of the same order as the measurement)."]
+                        + ("Recorded as PREREG.md Deviation 2 (every run in these cells is under 150 ms, where timer and scheduler jitter is of the same order as the measurement)."
+                           if sf in (0.1, 1) else
+                           "Cause on record: co-tenant load on the same VM and VM restarts during the SF10 sequence (AUDIT.md, DECISIONS.md D17); the verdicts do not turn on these cells.")]
         out += ["", f"Total workload: DuckDB {fmt(td)} s, Spark {fmt(ts_)} s, ratio {fmt(tr, 3)}. "
                 "dbt model times are dbt execution_time per model; they are not ratioed against the engine times."]
     out += ["", "## Checksum verdicts (H3 and determinism)", "",
@@ -411,10 +413,17 @@ def main():
         else:
             s.append(f"| SF{sf_label(sf)} | not tested | not tested | n/a | n/a |")
     s += ["", "The intervals resample the five measured runs per cell; with n=5 they describe run-to-run spread on this machine, not a population.",
-          "", "## Not yet measured", "",
-          "SF10 was not run on the machine of record, so H2 (the crossover question) and H6 have no verdict. "
-          "Under PREREG.md Section 2 the study does not pass until every hypothesis holds; it is incomplete, not failed. "
-          "No second reviewer has signed REVIEW.md yet, so review status is UNVERIFIED. What was checked is listed in AUDIT.md."]
+          ""]
+    open_h = [h for h, (v, _) in verdicts.items() if v == "Not yet measured"]
+    if open_h:
+        s += ["## Not yet measured", "",
+              f"{', '.join(open_h)} have no verdict yet. Under PREREG.md Section 2 the study does not pass until every hypothesis holds; it is incomplete, not failed.", ""]
+    else:
+        failed = [h for h, (v, _) in verdicts.items() if v != "Supported"]
+        s += ["## Study status", "",
+              f"Every hypothesis has a verdict. {', '.join(failed) or 'None'} did not come out Supported, so under PREREG.md Section 2 the study does not pass as a whole; the verdicts above stand as measured." if failed else
+              "Every hypothesis has a verdict and all are Supported.", ""]
+    s += ["No second reviewer has signed REVIEW.md yet, so review status is UNVERIFIED. What was checked is listed in AUDIT.md."]
     (RESULTS / "verdicts.json").write_text(json.dumps(summary, indent=2) + "\n")
     (ROOT / "RESULTS.md").write_text("\n".join(s) + "\n")
 

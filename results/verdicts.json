@@ -10,12 +10,12 @@
       "why": "total workload ratio 0.125 at SF0.1 and 0.162 at SF1, both at most 0.5"
     },
     "H2": {
-      "verdict": "Not yet measured",
-      "why": "SF10 was not completed on this machine; that is not H2 being false"
+      "verdict": "Refuted",
+      "why": "at SF10 no transformation reaches a 1.5 ratio (best 0.467); no crossover observed inside the ladder tested"
     },
     "H3": {
       "verdict": "Supported",
-      "why": "12 of 12 (scale, transformation) cells agree across all three arms on run 1; run 5 determinism holds everywhere"
+      "why": "18 of 18 (scale, transformation) cells agree across all three arms on run 1; run 5 determinism holds everywhere"
     },
     "H4": {
       "verdict": "Supported",
@@ -26,8 +26,8 @@
       "why": "10 of 10 faults caught; zero missed critical faults"
     },
     "H6": {
-      "verdict": "Not yet measured",
-      "why": "no SF10 incremental timing recorded; the small-scale clause (saving at most 50% at SF0.1 and SF1) already fails (SF1 70.5%), so once SF10 is run the best possible verdict is Partially supported, never Supported"
+      "verdict": "Partially supported",
+      "why": "incremental saving 87.1% at SF10, but a small scale also exceeds 50% (SF0.1 23.2%, SF1 70.5%)"
     }
   },
   "totals": {
@@ -100,11 +100,47 @@
           0.121521
         ]
       }
+    },
+    "10": {
+      "duckdb": 351.62226,
+      "spark": 1417.89108,
+      "ratio": 0.24799,
+      "ratio_ci95": [
+        0.227901,
+        0.269673
+      ],
+      "per_transformation_ci95": {
+        "t1": [
+          0.431868,
+          0.505536
+        ],
+        "t2": [
+          0.346528,
+          0.418308
+        ],
+        "t3": [
+          0.056484,
+          0.100443
+        ],
+        "t4": [
+          0.08182,
+          0.156992
+        ],
+        "t5": [
+          0.14805,
+          0.253822
+        ],
+        "t6": [
+          0.232013,
+          0.329437
+        ]
+      }
     }
   },
   "incremental_saving_pct": {
     "0.1": 23.1922,
-    "1": 70.4906
+    "1": 70.4906,
+    "10": 87.1371
   },
   "faults_caught": 10,
   "critical_missed": []

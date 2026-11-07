@@ -33,16 +33,25 @@ def verdicts(rl=run_log, ch=checks, ga=gates, inc=incr):
 
 # ---- 1. known answer -------------------------------------------------------
 ev = evaluate(run_log, checks, gates, incr)
-assert verdicts() == {"H1": "Supported", "H2": "Not yet measured", "H3": "Supported",
-                      "H4": "Supported", "H5": "Supported", "H6": "Not yet measured"}, verdicts()
+assert verdicts() == {"H1": "Supported", "H2": "Refuted", "H3": "Supported",
+                      "H4": "Supported", "H5": "Supported", "H6": "Partially supported"}, verdicts()
 r01, d01, s01 = ev["total_ratio"](0.1)
 r1, d1, s1 = ev["total_ratio"](1)
 assert (round(d01, 2), round(s01, 2), round(r01, 3)) == (1.48, 11.86, 0.125)
 assert (round(d1, 2), round(s1, 2), round(r1, 3)) == (16.27, 100.59, 0.162)
 assert round(ev["savings"][0.1]["saving_pct"], 1) == 23.2
 assert round(ev["savings"][1]["saving_pct"], 1) == 70.5
+assert round(ev["savings"][10]["saving_pct"], 1) == 87.1
+r10, d10, s10 = ev["total_ratio"](10)
+assert (round(d10, 2), round(s10, 2), round(r10, 3)) == (351.62, 1417.89, 0.248)
+assert "best 0.467" in ev["verdicts"]["H2"][1]
 assert ev["total_caught"] == 10 and ev["crit_missed"] == []
-assert "best possible verdict is Partially supported" in ev["verdicts"]["H6"][1]
+# Without the SF10 rows, H2 and H6 fall back to Not yet measured, and H6 names its ceiling.
+run_log_small = [r for r in run_log if r["sf"] != 10]
+incr_small = [r for r in incr if r["sf"] != 10]
+v_small = evaluate(run_log_small, checks, gates, incr_small)["verdicts"]
+assert v_small["H2"][0] == "Not yet measured" and v_small["H6"][0] == "Not yet measured", v_small
+assert "best possible verdict is Partially supported" in v_small["H6"][1]
 lo, hi = ev["boot"][1]["total"]
 assert lo < r1 < hi, (lo, r1, hi)
 # Same PRNG stream as site/src/lab.js (values printed by node for seed 20261106).
@@ -75,7 +84,7 @@ def with_sf10(spark_t2, duck_t2):
     for e in extra:
         if e["arm"] == "spark" and e["transformation"] == "t2":
             e["seconds"] = spark_t2
-    return run_log + extra
+    return run_log_small + extra
 
 
 assert verdicts(rl=with_sf10(10.0, 20.0))["H2"] == "Supported"
@@ -104,7 +113,7 @@ def with_sf10_incr(full, inc):
     # Reuse SF0.1 checksums for every SF10 row so H4 still holds.
     extra[0]["model_seconds"] = {"daily_sales": full, "ranked_sales": full}
     extra[3]["model_seconds"] = {"daily_sales": inc, "ranked_sales": inc}
-    return incr + extra
+    return incr_small + extra
 
 
 assert verdicts(inc=with_sf10_incr(10.0, 2.0))["H6"] == "Partially supported"
