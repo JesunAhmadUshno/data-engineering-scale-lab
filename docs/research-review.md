@@ -1,7 +1,8 @@
 # Research review
 
 A review of this repository against a doctoral-level research rubric,
-dated 2026-11-07. Grades: A (meets the bar), B (meets it with stated
+dated 2026-11-07 and regraded the same day after the SF10 runs landed on
+the default branch (DECISIONS.md D14 to D18). Grades: A (meets the bar), B (meets it with stated
 gaps), C (a gap that weakens a conclusion). Every gap that could be fixed
 without new compute, paid services or long runs was fixed in the same
 change as this file; each remaining gap names the exact compute or data
@@ -15,11 +16,11 @@ it needs.
 | Hypotheses | A | H1 to H6 are falsifiable with numeric thresholds, registered before data |
 | Method | A | Three arms, identical inputs and SQL, parity check, frozen transformations |
 | Baselines and comparators | B | Spark vs DuckDB is head to head; dbt uses a different timing base |
-| Statistics and uncertainty | B | Mean, SD, CV over n=5 plus bootstrap intervals; no tests, small n |
+| Statistics and uncertainty | B | Mean, SD, CV over n=5 plus bootstrap intervals at all three scales; no tests, small n, SF10 cells under co-tenant load |
 | Reproducibility | A | Lockfile, CI checksum gate, generated results, decision-rule checks |
 | Threats to validity | A | Stated in METHODS.md, PREREG.md and on the dashboard |
 | Related work | B | RESEARCH.md cites primary docs and DuckDB's SIGMOD paper; thin on prior benchmarks |
-| Limitations and completeness | C | SF10 not run: the core crossover question (H2) and H6 have no verdict |
+| Limitations and completeness | B | Every hypothesis has a verdict up to SF10 (H2 refuted, H6 partially supported); SF30, a cluster and a second reviewer remain |
 
 ## Criteria in detail
 
@@ -40,7 +41,9 @@ Fixed in this change: H6 was reported only as "Not yet measured", which
 hid that the SF1 saving (70.5%) already breaks the pre-registered clause
 that the saving stays at or below 50% at SF1. make_results.py, RESULTS.md
 and the dashboard now say so, and that the best possible H6 verdict is
-Partially supported. The rule itself is unchanged.
+Partially supported. The rule itself is unchanged. With SF10 now
+measured, that is the verdict H6 received: 87.1% at SF10 meets the
+large-scale clause, SF1's 70.5% breaks the small-scale one.
 
 ### Method (A)
 
@@ -69,7 +72,9 @@ Fixed in this change:
   seed 20261106) for every D/S ratio and the total, in make_results.py,
   results/verdicts.json and the dashboard. The H1 totals are 0.125
   (0.115 to 0.136) at SF0.1 and 0.162 (0.158 to 0.166) at SF1, far from
-  the 0.5 line.
+  the 0.5 line. At SF10 the total is 0.248 (0.228 to 0.270), and the
+  highest single ratio, T1 at 0.467 (0.432 to 0.506), is far from H2's
+  1.5 line, so the H2 refutation does not hinge on run-to-run spread.
 - The two DuckDB cells over the pre-registered 30% CV line (SF0.1 T3,
   SF1 T6) are now recorded as PREREG.md Deviation 2 instead of only
   being explained in METHODS.md.
@@ -82,7 +87,15 @@ Remaining, with what each needs:
   would put a spread on the savings (ROADMAP item 3).
 - Setup overhead is one measurement per scale. Five setup measurements
   per arm and scale need the same environment and minutes of runtime.
-- The over-30% CV cells were not re-run as the protocol asks. Re-running
+- Three DuckDB cells at SF10 (T3 36%, T4 47%, T5 33%) are over the 30%
+  CV line. The cause on record is co-tenant load and VM restarts during
+  the SF10 sequence (AUDIT.md, DECISIONS.md D17), not timer jitter, so
+  they are reported with that cause rather than under Deviation 2.
+  Re-running them needs SF10 regenerated, DuckDB installed and a quiet
+  machine (no co-tenant workload); a full DuckDB pass of the six
+  transformations at SF10 averaged about 350 s on the machine of record.
+  No verdict turns on them.
+- The SF0.1 and SF1 over-30% CV cells were not re-run as the protocol asks. Re-running
   them needs the SF0.1 and SF1 data regenerated and DuckDB installed; a
   higher run count for sub-150 ms cells would be the better fix.
 - With n=5 a bootstrap interval is rough. No significance tests are
@@ -108,6 +121,13 @@ Fixed in this change:
   JavaScript known-answer check against results/verdicts.json.
 - Hygiene: sql/dbt/logs/dbt.log and sql/dbt/.user.yml are no longer
   tracked; dbt logs, target/ and the site build outputs are ignored.
+- After the SF10 merge, make_results.py printed a stale "SF10 was not
+  run" section and labelled the SF10 high-CV cells as sub-150 ms timer
+  jitter. Both are now driven by the data: the status section names
+  whichever hypotheses lack a verdict (none at present), and SF10 cells
+  cite their own cause. src/check_results.py pins the SF10 known answers
+  (H2 best 0.467, SF10 total 0.248, H6 87.1%) and still exercises the
+  Not yet measured branches by dropping the SF10 rows.
 - There was no README. README.md now gives the question, arms, results,
   reproduction commands, limitations and the dashboard link.
 
@@ -127,20 +147,26 @@ DuckDB's own paper are discussed. Closing it needs a literature search
 and reading time, no compute; it is left for the second reviewer pass so
 the reading is independent of the author.
 
-### Limitations and completeness (C)
+### Limitations and completeness (B)
 
-The study does not yet answer the first half of RQ1. Remaining, with
-what each needs:
+Regraded from C. The gap that set the C, SF10 not run, is closed: all
+three arms ran five times at SF10, checksums agree in 18 of 18 cells,
+and the SF10 incremental cycle ran (DECISIONS.md D14 to D18). Every
+hypothesis now has a verdict: H1, H3, H4 and H5 supported, H2 refuted
+(no crossover inside the ladder tested), H6 partially supported. Under
+PREREG.md Section 2 the study therefore does not pass as a whole; that
+is a measured outcome, not an incomplete one. The SF10 sequence carried
+costs that are disclosed rather than hidden: dbt thread and memory
+settings changed (D14), one process per dbt run (D15), VM restarts and
+co-tenant load (D17), and a checksum collection that needed a
+persistence patch (D18).
 
-- SF10 for all three arms, five runs each, plus the SF10 incremental
-  cycle: `make data SF=10` then `make run SF=10`. Needs about 60M
-  lineitem rows generated in ten chunks, DuckDB 2.0.0, Spark 4.0.1 with
-  Java 21 and dbt-duckdb installed, and an estimated several hours on
-  the 4-core, 7.7 GiB machine of record (Spark at SF1 already takes
-  about 100 s per pass of the six transformations). This exceeds the
-  five-minute budget of this change and the review machine lacks the
-  engines. It decides H2 and H6.
-- SF30 needs a machine with about 32 GB of RAM (ROADMAP item 1).
+Remaining, with what each needs:
+
+- The H2 claim stops at SF10. SF30 needs a machine with about 32 GB of
+  RAM (ROADMAP item 1), the same code and protocol, and several hours.
+- Spark is local mode only. A cluster comparison needs a multi-node
+  Spark deployment, which is outside this study's zero-spend scope.
 - An independent reviewer named in REVIEW.md (research pack U-12).
   Needs a person who is not the author; until then the study is
   UNVERIFIED for review status by its own rule.

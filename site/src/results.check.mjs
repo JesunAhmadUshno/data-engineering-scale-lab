@@ -24,7 +24,16 @@ for (const [h, { verdict, why }] of Object.entries(ref.verdicts)) {
   assert.equal(ev.verdicts[h][1], why, `${h} reason`);
 }
 assert.deepEqual(Object.fromEntries(Object.entries(ev.verdicts).map(([h, [v]]) => [h, v])),
-  { H1: 'Supported', H2: 'Not yet measured', H3: 'Supported', H4: 'Supported', H5: 'Supported', H6: 'Not yet measured' });
+  { H1: 'Supported', H2: 'Refuted', H3: 'Supported', H4: 'Supported', H5: 'Supported', H6: 'Partially supported' });
+// SF10 is in the logs: the page's SF10 figures (H2's best ratio, the SF10 total, the H6 saving) are pinned too.
+const best10 = TKEYS.map((t) => cell(ev.stats, 'duckdb', 10, t).mean / cell(ev.stats, 'spark', 10, t).mean).sort((x, y) => y - x)[0];
+assert.ok(ref.verdicts.H2.why.includes(`best ${best10.toFixed(3)}`), 'H2 best SF10 ratio');
+assert.equal(best10.toFixed(3), '0.467');
+assert.equal(totalRatio(ev.stats, 10).ratio.toFixed(3), '0.248');
+assert.equal(ev.savings['10'].saving_pct.toFixed(1), '87.1');
+// Without the SF10 rows, the rules fall back to Not yet measured, as make_results.py does.
+const small = evaluate({ runLog: runLog.filter((r) => r.sf !== 10), checks, gates, incr: incr.filter((r) => r.sf !== 10) });
+assert.equal(small.verdicts.H2[0], 'Not yet measured'); assert.equal(small.verdicts.H6[0], 'Not yet measured');
 
 // 2. Totals, ratios and bootstrap intervals (same PRNG stream as Python).
 for (const [sf, t] of Object.entries(ref.totals)) {
@@ -59,6 +68,9 @@ for (const t of TKEYS) {
   close(w.ratioAt(0.1), cell(ev.stats, 'duckdb', 0.1, t).mean / cell(ev.stats, 'spark', 0.1, t).mean, 1e-9, `${t} what-if SF0.1`);
 }
 
+// 5b. The SF10 session calculator uses the completed session's setup (the last setup row, as make_results.py).
+assert.equal(setups['spark|10'], runLog.filter((r) => r.arm === 'spark' && r.sf === 10 && r.transformation === 'setup').at(-1).seconds);
+
 // 6. Checksum playground: crypto.subtle equals node's SHA-256, and the canonical sort makes order irrelevant.
 const rows = [['1995-03-01', '12', '1034.50'], ['1994-07-19', '9', '880.10'], ['1995-03-01', '3', '75.00']];
 const a = canonicalCsv(rows), b = canonicalCsv([...rows].reverse());
@@ -71,4 +83,4 @@ assert.notEqual(await sha256Hex(a), await sha256Hex(canonicalCsv(rows.map((r) =>
 assert.ok(mdList(R('METHODS.md'), '## Threats to validity').length >= 4);
 assert.ok(mdList(R('ROADMAP.md'), 'in evidence order.').length >= 5);
 
-console.log('results ok', { H: Object.values(ev.verdicts).map((v) => v[0]).join(' / '), sf01: ref.totals['0.1'].ratio, sf1: ref.totals['1'].ratio });
+console.log('results ok', { H: Object.values(ev.verdicts).map((v) => v[0]).join(' / '), sf01: ref.totals['0.1'].ratio, sf1: ref.totals['1'].ratio, sf10: ref.totals['10'].ratio });

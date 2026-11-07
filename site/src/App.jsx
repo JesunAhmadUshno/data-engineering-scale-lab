@@ -26,11 +26,15 @@ const EV = evaluate({ runLog, checks, gates, incr });
 const STATS = EV.stats;
 const SETUPS = setupSeconds(runLog);
 const MACHINE = runLog.find((r) => r.machine)?.machine ?? {};
-const T01 = totalRatio(STATS, 0.1), T1 = totalRatio(STATS, 1);
+const T01 = totalRatio(STATS, 0.1), T1 = totalRatio(STATS, 1), T10 = totalRatio(STATS, 10);
 const N_RUNS = cell(STATS, 'duckdb', 1, 't1').n;
-const ALL_FASTER = [0.1, 1].every((sf) => TKEYS.every((t) => cell(STATS, 'duckdb', sf, t).mean < cell(STATS, 'spark', sf, t).mean));
+const BENCH_SCALES = [0.1, 1, 10];
+const ALL_FASTER = BENCH_SCALES.every((sf) => TKEYS.every((t) => cell(STATS, 'duckdb', sf, t).mean < cell(STATS, 'spark', sf, t).mean));
+// Highest D/S at SF10: the H2 crossover rule asks whether any transformation reaches 1.5.
+const BEST10 = TKEYS.map((t) => [t, cell(STATS, 'duckdb', 10, t).mean / cell(STATS, 'spark', 10, t).mean]).sort((a, b) => b[1] - a[1])[0];
 const BOOT_B = 2000; // resamples, as BOOT_B in src/make_results.py
-const HIGH_CV = [0.1, 1].flatMap((sf) => TKEYS.filter((t) => cell(STATS, 'duckdb', sf, t).cv > RULES.cvLine).map((t) => `SF${sf} ${t.toUpperCase()}`));
+const highCv = (sfs) => sfs.flatMap((sf) => TKEYS.filter((t) => cell(STATS, 'duckdb', sf, t).cv > RULES.cvLine).map((t) => `SF${sf} ${t.toUpperCase()}`));
+const HIGH_CV = highCv([0.1, 1]), HIGH_CV10 = highCv([10]);
 // Hypothesis and transformation names are read from PREREG.md, not retyped.
 const H_NAMES = Object.fromEntries([...preregMd.matchAll(/^- (H\d), ([^:]+):/gm)].map((m) => [m[1], m[2]]));
 const T_NAMES = Object.fromEntries([...preregMd.matchAll(/^- (T\d) ([^:]+):/gm)].map((m) => [m[1].toLowerCase(), m[2]]));
@@ -132,7 +136,7 @@ export default function App() {
 }
 
 function Hero() {
-  const b01 = bootstrapRatios(STATS, 0.1).total, b1 = bootstrapRatios(STATS, 1).total;
+  const b01 = bootstrapRatios(STATS, 0.1).total, b1 = bootstrapRatios(STATS, 1).total, b10 = bootstrapRatios(STATS, 10).total;
   const cv = Object.values(checks.verdicts);
   return (
     <header className="card hero window" id="top" data-title="data-engineering-scale-lab — README.md">
@@ -144,16 +148,18 @@ function Hero() {
       <p className="sub">
         Same Parquet files, same SQL, {MACHINE.cores} cores and {MACHINE.ram_gib} GiB of RAM. Summed over the six frozen transformations (mean of {N_RUNS} runs each),
         DuckDB took {f2(T01.duckdb)} s against Spark local mode’s {f2(T01.spark)} s at SF0.1, and {f2(T1.duckdb)} s against {f2(T1.spark)} s at SF1 ({f3(T1.ratio)}×).
-        All three arms wrote byte-identical outputs. The question the study was built for, whether Spark overtakes DuckDB at a larger scale, is <b>not yet measured</b>: SF10 was never run on this machine.
+        At SF10 it was {f2(T10.duckdb)} s against {f2(T10.spark)} s ({f3(T10.ratio)}×). All three arms wrote byte-identical outputs.
+        The question the study was built for, whether Spark overtakes DuckDB at a larger scale, got a <b>no inside the ladder tested</b>: at SF10 the closest transformation, {BEST10[0].toUpperCase()}, reached a D/S of {f3(BEST10[1])}, far from the {RULES.h2MinRatio} crossover line. The ladder stops at SF10, and so does that claim.
       </p>
       <div className="actions">
         <a className="btn primary" href="#bench">Explore the recorded timings</a>
         <a className="btn ghost" href={blob('PREREG.md')}>Read the pre-registration</a>
         <span className="hint">Cheap checks: <code>make check</code></span>
       </div>
-      <div className="tiles">
+      <div className="tiles five">
         <div className="tile"><div className="num">{f3(T01.ratio)}×</div><div className="cap">SF0.1: {f2(T01.duckdb)} s DuckDB vs {f2(T01.spark)} s Spark, six means, n={N_RUNS} (95% CI {f3(b01[0])} to {f3(b01[1])})</div></div>
         <div className="tile"><div className="num">{f3(T1.ratio)}×</div><div className="cap">SF1: {f2(T1.duckdb)} s DuckDB vs {f2(T1.spark)} s Spark, six means, n={N_RUNS} (95% CI {f3(b1[0])} to {f3(b1[1])})</div></div>
+        <div className="tile"><div className="num">{f3(T10.ratio)}×</div><div className="cap">SF10: {f2(T10.duckdb)} s DuckDB vs {f2(T10.spark)} s Spark, six means, n={N_RUNS} (95% CI {f3(b10[0])} to {f3(b10[1])})</div></div>
         <div className="tile"><div className="num">{cv.filter((c) => c.arms_agree_run1).length}/{cv.length}</div><div className="cap">(scale, transformation) cells where all three arms give the same SHA-256</div></div>
         <div className="tile"><div className="num">{EV.faults.caught}/10</div><div className="cap">injected faults caught, {EV.faults.criticalMissed.length} critical missed</div></div>
       </div>
@@ -164,26 +170,27 @@ function Hero() {
 function Hypotheses() {
   const v = EV.verdicts, sav = EV.savings;
   const b = { '0.1': bootstrapRatios(STATS, 0.1).total, 1: bootstrapRatios(STATS, 1).total };
+  const bBest = bootstrapRatios(STATS, 10)[BEST10[0]];
   const bySf = groupIncr(incr);
   let eq = 0, tot = 0;
   for (const scen of Object.values(bySf)) for (const s of ['S1', 'S2', 'S3', 'S3b']) for (const t of ['t3', 't4']) { tot++; if (scen[s]?.checksums[t].sha256 === scen.full_refresh.checksums[t].sha256) eq++; }
   const cv = Object.values(checks.verdicts);
   const cards = [
     ['H1', `Total D/S ratio at most ${RULES.h1MaxRatio} at SF0.1 and SF1`, `${f3(T01.ratio)} (CI ${f3(b['0.1'][0])} to ${f3(b['0.1'][1])}) and ${f3(T1.ratio)} (CI ${f3(b[1][0])} to ${f3(b[1][1])})`],
-    ['H2', `Some transformation at D/S ≥ ${RULES.h2MinRatio} at SF10`, 'Not yet measured (SF10 not run)'],
+    ['H2', `Some transformation at D/S ≥ ${RULES.h2MinRatio} at SF10`, `Highest at SF10: ${BEST10[0].toUpperCase()} ${f3(BEST10[1])} (CI ${f3(bBest[0])} to ${f3(bBest[1])})`],
     ['H3', 'Identical checksum across all arms, every cell', `${cv.filter((c) => c.arms_agree_run1).length} of ${cv.length} cells agree on run 1`],
     ['H4', 'Every late-data scenario equals the full refresh (T3, T4)', `${eq} of ${tot} scenario checksums equal`],
     ['H5', `At least ${RULES.h5MinCatch * 100}% of F01–F10 caught, zero critical missed`, `${EV.faults.caught} of 10 caught, ${EV.faults.criticalMissed.length} critical missed`],
-    ['H6', `Incremental saving > ${RULES.h6Saving}% at SF10, ≤ ${RULES.h6Saving}% at SF0.1 and SF1`, `SF0.1 ${pct1(sav['0.1'].saving_pct)}, SF1 ${pct1(sav['1'].saving_pct)}; SF10 not run`],
+    ['H6', `Incremental saving > ${RULES.h6Saving}% at SF10, ≤ ${RULES.h6Saving}% at SF0.1 and SF1`, `SF0.1 ${pct1(sav['0.1'].saving_pct)}, SF1 ${pct1(sav['1'].saving_pct)}, SF10 ${pct1(sav['10'].saving_pct)}`],
   ];
   return (
     <section id="prereg" className="card window reveal" data-title="prereg.md — RQ1 and H1–H6">
       <p className="eyebrow">Hypothesis board · verdicts computed in your browser</p>
-      <h2>Four hypotheses hold. The two that need <em>SF10</em> are still open.</h2>
+      <h2>Four hypotheses hold. At <em>SF10</em>, H2 is refuted and H6 holds only in part.</h2>
       <p className="sub">
         RQ1 asks at what data scale, if any, local Spark beats DuckDB on identical transformations, and what incremental dbt models with quality gates cost and catch.
         Each card applies the decision rule from <a href={blob('METHODS.md')}>METHODS.md</a> to the recorded logs, using a JavaScript port of <a href={blob('src/make_results.py')}>make_results.py</a>.
-        The build fails if any verdict or reason differs from the Python output. PREREG Section 2 says the study passes only when every hypothesis holds, so it is incomplete, not passed.
+        The build fails if any verdict or reason differs from the Python output. PREREG Section 2 says the study passes only when every hypothesis holds; with H2 refuted and H6 partially supported, it does not pass as a whole, and the verdicts stand as measured.
       </p>
       <div className="hgrid">
         {cards.map(([h, rule, measured]) => (
@@ -208,24 +215,23 @@ function ScaleBench() {
   const [sf, setSf] = useState(1);
   const [pre, setPre] = useState(false);
   const [hover, setHover] = useState(null);
-  const tested = sf !== 10;
-  const boot = useMemo(() => (tested ? bootstrapRatios(STATS, sf) : null), [sf, tested]);
+  const boot = useMemo(() => bootstrapRatios(STATS, sf), [sf]);
   const W = 960, H = 320, pad = { l: 56, r: 12, t: 14, b: 34 };
-  const lo = -2.2, hi = 2;
+  const lo = -2.2, hi = 3;
   const y = (s) => pad.t + (1 - (Math.log10(Math.max(10 ** lo, s)) - lo) / (hi - lo)) * (H - pad.t - pad.b);
   const gw = (W - pad.l - pad.r) / TKEYS.length, bw = gw / 4.6;
   const gx = (i) => pad.l + i * gw + gw * 0.12;
   const preCells = (arm, t) => preWarm.filter((r) => r.arm === arm && r.sf === 0.1 && r.transformation === t).map((r) => r.seconds);
-  const flaggedCells = tested ? TKEYS.flatMap((t) => ARMS.filter(([a]) => a !== 'dbt' && cell(STATS, a, sf, t).cv > RULES.cvLine).map(([a, n]) => ({ label: `${n} ${t.toUpperCase()} (CV ${cell(STATS, a, sf, t).cv.toFixed(0)}%)`, c: cell(STATS, a, sf, t) }))) : [];
+  const flaggedCells = TKEYS.flatMap((t) => ARMS.filter(([a]) => a !== 'dbt' && cell(STATS, a, sf, t).cv > RULES.cvLine).map(([a, n]) => ({ label: `${n} ${t.toUpperCase()} (CV ${cell(STATS, a, sf, t).cv.toFixed(0)}%)`, c: cell(STATS, a, sf, t) })));
   const flagged = flaggedCells.map((f) => f.label);
   const flaggedMax = Math.max(0, ...flaggedCells.flatMap((f) => f.c.values));
-  const h = hover && tested ? hover : null;
+  const h = hover;
   return (
     <section id="bench" className="card window reveal" data-title="scale_bench.app — recorded replay">
       <div className="head">
         <div>
           <p className="eyebrow">Recorded timings · not a live run</p>
-          <h2>At SF0.1 and SF1 ({N_RUNS} runs per cell), DuckDB beat Spark local on <em>{ALL_FASTER ? 'every one' : 'most'}</em> of the six transformations.</h2>
+          <h2>At SF0.1, SF1 and SF10 ({N_RUNS} runs per cell), DuckDB beat Spark local on <em>{ALL_FASTER ? 'every one' : 'most'}</em> of the six transformations.</h2>
           <p className="sub">
             Bars are the mean of {N_RUNS} recorded runs per cell, after one uncounted warm-up pass; dots are the individual runs. Log scale.
             DuckDB and Spark times are execution plus write. dbt bars use dbt’s own per-model execution time, a different timing base, so they are shown for cost context and never ratioed.
@@ -233,10 +239,9 @@ function ScaleBench() {
         </div>
         <Seg label="Scale factor" value={sf} onChange={setSf} options={[[0.1, 'SF0.1'], [1, 'SF1'], [10, 'SF10']]} />
       </div>
-      {tested ? (
-        <>
+      <>
           <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Recorded mean seconds per transformation at SF${sf} for DuckDB, Spark and dbt, log scale`} onMouseLeave={() => setHover(null)}>
-            {[0.01, 0.1, 1, 10, 100].map((t) => <g key={t}><line className="axis" x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} /><text x={pad.l - 8} y={y(t) + 4} textAnchor="end">{t >= 1 ? `${t} s` : `${t * 1000} ms`}</text></g>)}
+            {[0.01, 0.1, 1, 10, 100, 1000].map((t) => <g key={t}><line className="axis" x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} /><text x={pad.l - 8} y={y(t) + 4} textAnchor="end">{t >= 1 ? `${t} s` : `${t * 1000} ms`}</text></g>)}
             {TKEYS.map((t, i) => (
               <g key={t} onMouseEnter={() => setHover(t)} style={{ cursor: 'default' }}>
                 <rect x={pad.l + i * gw} y={pad.t} width={gw} height={H - pad.t - pad.b} fill={hover === t ? 'var(--primary-pale)' : 'transparent'} />
@@ -287,16 +292,12 @@ function ScaleBench() {
             </table>
           </div>
           <p className="hint">
-            {flagged.length ? `Over the pre-registered ${RULES.cvLine}% CV line: ${flagged.join(', ')}. The slowest run in these cells took ${sec(flaggedMax)}, where timer jitter is of the same order as the measurement; recorded as PREREG Deviation 2, not re-run.` : `No cell at SF${sf} is over the ${RULES.cvLine}% CV line.`}
+            {!flagged.length ? `No cell at SF${sf} is over the ${RULES.cvLine}% CV line.`
+              : sf === 10 ? `Over the pre-registered ${RULES.cvLine}% CV line: ${flagged.join(', ')}. These are not timer jitter: the cause on record is co-tenant load on the same VM and VM restarts during the SF10 sequence (AUDIT.md, DECISIONS.md D17). The H2 verdict does not turn on them; its margin to ${RULES.h2MinRatio} is wide.`
+              : `Over the pre-registered ${RULES.cvLine}% CV line: ${flagged.join(', ')}. The slowest run in these cells took ${sec(flaggedMax)}, where timer jitter is of the same order as the measurement; recorded as PREREG Deviation 2, not re-run.`}
             {' '}Bootstrap intervals resample the {N_RUNS} runs per cell {BOOT_B.toLocaleString('en-US')} times; with n={N_RUNS} they describe run-to-run spread on this machine only.
           </p>
         </>
-      ) : (
-        <div className="empty">
-          <span className="pill info">Not tested on this machine</span>
-          <p>SF10 is on the pre-registered ladder but was never run on the machine of record, so there are no SF10 timings to show and H2, the crossover question, has no verdict. That is not H2 being false.</p>
-        </div>
-      )}
       <WhatIf />
     </section>
   );
@@ -305,11 +306,12 @@ function ScaleBench() {
 function WhatIf() {
   const [t, setT] = useState('t2');
   const w = useMemo(() => twoPointWhatIf(STATS, t), [t]);
+  const measured10 = cell(STATS, 'duckdb', 10, t).mean / cell(STATS, 'spark', 10, t).mean;
   const id = useId();
   return (
     <div className="whatif">
       <div className="head" style={{ marginBottom: 8 }}>
-        <h3>Two-point what-if: where would the lines cross if nothing changed?</h3>
+        <h3>Two-point what-if: what did SF0.1 and SF1 alone predict for SF10?</h3>
         <span className="pill bad">Extrapolation, not a result</span>
       </div>
       <div className="field" style={{ maxWidth: 320 }}>
@@ -321,7 +323,8 @@ function WhatIf() {
       <p className="hint" style={{ fontSize: 13 }}>
         From SF0.1 to SF1, {t.toUpperCase()} time grew as scale^{f2(w.bD)} for DuckDB and scale^{f2(w.bS)} for Spark (log-log slope over two points).
         {w.impliedSf ? ` Drawing those two straight lines onward, the D/S ratio would reach ${RULES.h2MinRatio} near SF${w.impliedSf < 1e4 ? w.impliedSf.toFixed(0) : w.impliedSf.toExponential(1)}.` : ' DuckDB’s time grew no faster than Spark’s, so the straight lines never reach the H2 line.'}
-        {' '}Two points fix a line exactly and say nothing about curvature, memory spill or out-of-core behaviour, which is exactly what SF10 was meant to test. Treat this as a reason to run SF10, not as an answer.
+        {' '}At SF10 the same lines give a D/S of {f3(w.ratioAt(10))}; the recorded SF10 ratio is {f3(measured10)}.
+        Two points fix a line exactly and say nothing about curvature, memory spill or out-of-core behaviour, so this is a check on how far a naive trend can be trusted, not a forecast past the ladder.
       </p>
     </div>
   );
@@ -344,13 +347,13 @@ function SessionCost() {
       <p className="eyebrow">Calculator · no new measurement</p>
       <h2>Spark’s start-up is not the whole story: at SF{sf} it is also <em>{r.steadyRatio < 1 ? 'slower per job' : 'not faster per job'}</em>.</h2>
       <p className="sub">
-        Spark’s JVM, session and first action were timed separately at {f2(SETUPS['spark|0.1'])} s (SF0.1) and {f2(SETUPS['spark|1'])} s (SF1); DuckDB’s connect and views at {f2(SETUPS['duckdb|0.1'])} s and {f2(SETUPS['duckdb|1'])} s (one measurement each).
+        Spark’s JVM, session and first action were timed separately at {f2(SETUPS['spark|0.1'])} s (SF0.1), {f2(SETUPS['spark|1'])} s (SF1) and {f2(SETUPS['spark|10'])} s (SF10); DuckDB’s connect and views at {f2(SETUPS['duckdb|0.1'])} s, {f2(SETUPS['duckdb|1'])} s and {f2(SETUPS['duckdb|10'])} s (one measurement each; at SF10 the completed session’s, DECISIONS.md D17).
         Pick a scale, a set of transformations and how many times a session runs them. Total = setup + jobs × the sum of the recorded means. If Spark were faster per job, a long enough session would pay back its start-up; the calculator shows whether that happens.
       </p>
       <div className="grid2" style={{ marginTop: 16 }}>
         <div>
           <div className="controls" style={{ gridTemplateColumns: '1fr' }}>
-            <div className="field"><span className="flabel">Scale factor</span><Seg label="Scale factor for the calculator" value={sf} onChange={setSf} options={[[0.1, 'SF0.1'], [1, 'SF1']]} /></div>
+            <div className="field"><span className="flabel">Scale factor</span><Seg label="Scale factor for the calculator" value={sf} onChange={setSf} options={[[0.1, 'SF0.1'], [1, 'SF1'], [10, 'SF10']]} /></div>
             <fieldset className="field picks"><legend className="flabel">Transformations in each job</legend>
               {TKEYS.map((t) => <label key={t}><input type="checkbox" checked={chosen.includes(t)} onChange={() => toggle(t)} /> {t.toUpperCase()} {T_NAMES[t]}</label>)}
             </fieldset>
@@ -382,7 +385,7 @@ function Ledger() {
   const cells = Object.entries(checks.verdicts);
   const rowsOf = (k) => { const [s, t] = k.split(':'); return checks.records.find((r) => `sf${+r.sf}` === s && r.transformation === t && r.run === 1)?.rows; };
   return (
-    <section id="ledger" className="card window reveal" data-title="checksum_ledger.sha256 — 12 cells × 3 arms">
+    <section id="ledger" className="card window reveal" data-title={`checksum_ledger.sha256 — ${cells.length} cells × 3 arms`}>
       <p className="eyebrow">Recorded checksums · H3</p>
       <h2>Three engines, one answer: <em>identical bytes</em> in every cell.</h2>
       <p className="sub">
@@ -505,10 +508,10 @@ function LateData() {
           </div>
         </div>
         <div className="tile">
-          <div className="head" style={{ marginBottom: 6 }}><h3>What this does to H6</h3><span className="pill warn">Pre-registered prediction already off</span></div>
+          <div className="head" style={{ marginBottom: 6 }}><h3>What this does to H6</h3><span className={`pill ${VPILL[EV.verdicts.H6[0]]}`}>{EV.verdicts.H6[0]}</span></div>
           <p className="hint" style={{ margin: 0, fontSize: 13 }}>
-            H6 predicted a saving of at most {RULES.h6Saving}% at SF0.1 and SF1 and above {RULES.h6Saving}% only at SF10. SF0.1 fits ({pct1(sav['0.1'].saving_pct)}), but SF1 is already {pct1(sav['1'].saving_pct)}.
-            So even before SF10 is run, H6 can only end Partially supported or Refuted, never Supported. Each figure is a single S3 run with no spread.
+            H6 predicted a saving of at most {RULES.h6Saving}% at SF0.1 and SF1 and above {RULES.h6Saving}% only at SF10. SF10 fits ({pct1(sav['10'].saving_pct)}) and so does SF0.1 ({pct1(sav['0.1'].saving_pct)}), but SF1 is already {pct1(sav['1'].saving_pct)}.
+            The large-scale half of the prediction holds and the small-scale half does not, hence partially supported. Each figure is a single S3 run with no spread.
           </p>
         </div>
       </div>
@@ -579,10 +582,11 @@ function Threats() {
   const roadmap = mdList(roadmapMd, 'in evidence order.');
   const reviewOpen = /Reviewer: \(open\)/.test(reviewMd);
   const own = [
-    'SF10 was not run, so H2 (the crossover question in RQ1) and H6 are Not yet measured, and the study does not pass its own all-hypotheses rule yet.',
-    'SF30 was cut before pre-registration as a machine limit, so the ladder tops out at SF10 even on paper.',
+    `H2 is refuted only inside the ladder tested: no crossover up to SF10 (best D/S ${f3(BEST10[1])}). SF30 was cut before pre-registration as a machine limit, so nothing here says what happens above SF10.`,
+    'With H2 refuted and H6 partially supported, the study does not pass its own all-hypotheses rule (PREREG Section 2).',
     `The H6 savings and every late-data scenario rest on one run per scale; the timing cells have ${N_RUNS} runs each and setup overhead one, so there are no significance tests, only means, SDs, CVs and bootstrap intervals.`,
-    `${HIGH_CV.length} DuckDB cells (${HIGH_CV.join(', ')}) exceed the ${RULES.cvLine}% CV line and were not re-run (PREREG Deviation 2).`,
+    `${HIGH_CV.length} DuckDB cells at SF0.1 and SF1 (${HIGH_CV.join(', ')}) exceed the ${RULES.cvLine}% CV line and were not re-run (PREREG Deviation 2).`,
+    `${HIGH_CV10.length} DuckDB cells at SF10 (${HIGH_CV10.join(', ')}) also exceed it, recorded under co-tenant load on the same VM and across VM restarts in the SF10 sequence (AUDIT.md).`,
     `When a fault trips more than one gate (${EV.faults.rows.filter((r) => !r.fromIncremental && r.fired?.length > 1).map((r) => r.id).join(', ')}), the study does not separate the designed gate from side effects.`,
     'Arms A and B time execution plus write; Arm C uses dbt’s execution_time. The bases differ, so dbt is never ratioed against the engines.',
   ];
