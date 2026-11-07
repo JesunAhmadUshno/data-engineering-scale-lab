@@ -2,7 +2,7 @@ PY ?= python3
 SF ?= 0.1
 CHILDREN ?= 10
 
-.PHONY: data delta run ci-check reproduce
+.PHONY: data delta run ci-check reproduce check
 
 data:
 	$(PY) data/gen/generate.py --sf $(SF) $(if $(filter 10,$(SF)),--children $(CHILDREN),)
@@ -34,3 +34,8 @@ ci-check:
 
 reproduce: data run
 	$(PY) src/make_results.py
+
+# Cheap checks, no data or engines needed: SQL parity and the decision rules.
+check:
+	$(PY) src/check_sql_parity.py
+	$(PY) src/check_results.py

@@ -50,6 +50,9 @@ jobs:
       - name: SQL parity (U-07)
         run: python src/check_sql_parity.py
 
+      - name: Hypothesis decision rules
+        run: python src/check_results.py
+
       - name: Full SF0.1 gate (U-10)
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}

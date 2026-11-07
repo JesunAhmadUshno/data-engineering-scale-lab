@@ -9,6 +9,8 @@ Outputs:
 - results/checksums/<arm>/<scale>/<transformation>.sha256
 - run_log.md                  the U-08 run log table
 - RESULTS.md                  generated summary at the repository root
+- results/verdicts.json       machine-readable verdicts and totals (the site's
+                              known-answer check compares against it)
 
 Hypothesis decision rules are the operationalization fixed in METHODS.md
 before the SF1 and SF10 runs were seen.
@@ -74,30 +76,57 @@ def dbt_wall(run_log):
     return {sf: statistics.mean(v) for sf, v in out.items()}
 
 
-def main():
-    run_log = load_jsonl(RESULTS / "run_log.jsonl")
-    checks = json.loads((RESULTS / "checksums.json").read_text()) if (RESULTS / "checksums.json").exists() else {"records": [], "verdicts": {}}
-    gates = load_jsonl(RESULTS / "gate_log.jsonl")
-    incr = load_jsonl(RESULTS / "incremental_log.jsonl")
-    versions = json.loads((RESULTS / "versions.json").read_text()) if (RESULTS / "versions.json").exists() else {}
-    stats = cell_stats(run_log)
-    setups = setup_seconds(run_log)
-    walls = dbt_wall(run_log)
+def mulberry32(seed):
+    """Seeded 32-bit PRNG, bit-for-bit the same as the site's JavaScript copy
+    (site/src/lab.js), so the bootstrap intervals match in both places."""
+    M = 0xFFFFFFFF
+    state = seed & M
 
-    # ---- timing tables -------------------------------------------------
-    def timing_table(sf):
-        lines = [f"| Transformation | DuckDB mean (SD, CV) | Spark mean (SD, CV) | Ratio D/S | dbt model mean (SD) |",
-                 "| --- | --- | --- | --- | --- |"]
+    def rand():
+        nonlocal state
+        state = (state + 0x6D2B79F5) & M
+        t = ((state ^ (state >> 15)) * (state | 1)) & M
+        t = ((t + (((t ^ (t >> 7)) * (t | 61)) & M)) & M) ^ t
+        return ((t ^ (t >> 14)) & M) / 4294967296
+
+    return rand
+
+
+BOOT_B, BOOT_SEED = 2000, 20261106
+
+
+def bootstrap_ratios(stats, sf, B=BOOT_B, seed=BOOT_SEED):
+    """Percentile 95% intervals for each D/S ratio and the total ratio at one
+    scale: resample the five runs of every (arm, transformation) cell with
+    replacement, B times. With n=5 these intervals are rough; they are shown
+    so the H1 margins carry their run-to-run spread."""
+    rand = mulberry32(seed)
+    per_t = {t: [] for t in TKEYS}
+    totals = []
+
+    def resample_mean(v):
+        return sum(v[int(rand() * len(v))] for _ in v) / len(v)
+
+    for _ in range(B):
+        sd = ss = 0.0
         for t in TKEYS:
-            d = stats.get(("duckdb", sf, t))
-            s = stats.get(("spark", sf, t))
-            b = stats.get(("dbt", sf, t))
-            ratio = (d["mean"] / s["mean"]) if d and s else None
-            lines.append(
-                f"| {t} | {fmt(d['mean']) if d else 'n/a'} ({fmt(d['sd']) if d else '-'}, {fmt(d['cv'],0) if d else '-'}%) "
-                f"| {fmt(s['mean']) if s else 'n/a'} ({fmt(s['sd']) if s else '-'}, {fmt(s['cv'],0) if s else '-'}%) "
-                f"| {fmt(ratio, 3)} | {fmt(b['mean']) if b else 'n/a'} ({fmt(b['sd']) if b else '-'}) |")
-        return lines
+            d = resample_mean(stats[("duckdb", sf, t)]["values"])
+            s = resample_mean(stats[("spark", sf, t)]["values"])
+            per_t[t].append(d / s)
+            sd += d
+            ss += s
+        totals.append(sd / ss)
+
+    def ci(xs):
+        xs = sorted(xs)
+        return [xs[round(0.025 * (len(xs) - 1))], xs[round(0.975 * (len(xs) - 1))]]
+
+    return {"total": ci(totals), **{t: ci(per_t[t]) for t in TKEYS}}
+
+
+def evaluate(run_log, checks, gates, incr):
+    """Apply the METHODS.md decision rules. Pure: reads nothing, writes nothing."""
+    stats = cell_stats(run_log)
 
     def total_ratio(sf):
         d = sum(stats[("duckdb", sf, t)]["mean"] for t in TKEYS if ("duckdb", sf, t) in stats)
@@ -212,7 +241,50 @@ def main():
     elif 10 in savings:
         verdicts["H6"] = ("Inconclusive", "SF10 saving is recorded but a small-scale saving is missing")
     else:
-        verdicts["H6"] = ("Not yet measured", "no SF10 incremental timing recorded")
+        over = [f"SF{sf_label(sf)} {fmt(savings[sf]['saving_pct'], 1)}%" for sf in (0.1, 1)
+                if sf in savings and savings[sf]["saving_pct"] > 50]
+        why = "no SF10 incremental timing recorded"
+        if over:
+            why += (f"; the small-scale clause (saving at most 50% at SF0.1 and SF1) already fails"
+                    f" ({', '.join(over)}), so once SF10 is run the best possible verdict is"
+                    f" Partially supported, never Supported")
+        verdicts["H6"] = ("Not yet measured", why)
+
+    boot = {sf: bootstrap_ratios(stats, sf) for sf in spark_scales
+            if all(("duckdb", sf, t) in stats and ("spark", sf, t) in stats for t in TKEYS)}
+    return {"verdicts": verdicts, "stats": stats, "savings": savings, "incr_by_sf": incr_by_sf,
+            "gate_by_name": gate_by_name, "f08_caught": f08_caught, "total_caught": total_caught,
+            "crit_missed": crit_missed, "tested_scales": tested_scales, "spark_scales": spark_scales,
+            "total_ratio": total_ratio, "boot": boot, "cv": cv}
+
+
+def main():
+    run_log = load_jsonl(RESULTS / "run_log.jsonl")
+    checks = json.loads((RESULTS / "checksums.json").read_text()) if (RESULTS / "checksums.json").exists() else {"records": [], "verdicts": {}}
+    gates = load_jsonl(RESULTS / "gate_log.jsonl")
+    incr = load_jsonl(RESULTS / "incremental_log.jsonl")
+    versions = json.loads((RESULTS / "versions.json").read_text()) if (RESULTS / "versions.json").exists() else {}
+    ev = evaluate(run_log, checks, gates, incr)
+    verdicts, stats, savings, incr_by_sf = ev["verdicts"], ev["stats"], ev["savings"], ev["incr_by_sf"]
+    gate_by_name, f08_caught, cv = ev["gate_by_name"], ev["f08_caught"], ev["cv"]
+    tested_scales, spark_scales, total_ratio, boot = ev["tested_scales"], ev["spark_scales"], ev["total_ratio"], ev["boot"]
+    setups = setup_seconds(run_log)
+    walls = dbt_wall(run_log)
+
+    def timing_table(sf):
+        lines = [f"| Transformation | DuckDB mean (SD, CV) | Spark mean (SD, CV) | Ratio D/S | dbt model mean (SD) |",
+                 "| --- | --- | --- | --- | --- |"]
+        for t in TKEYS:
+            d = stats.get(("duckdb", sf, t))
+            s = stats.get(("spark", sf, t))
+            b = stats.get(("dbt", sf, t))
+            ratio = (d["mean"] / s["mean"]) if d and s else None
+            lines.append(
+                f"| {t} | {fmt(d['mean']) if d else 'n/a'} ({fmt(d['sd']) if d else '-'}, {fmt(d['cv'],0) if d else '-'}%) "
+                f"| {fmt(s['mean']) if s else 'n/a'} ({fmt(s['sd']) if s else '-'}, {fmt(s['cv'],0) if s else '-'}%) "
+                f"| {fmt(ratio, 3)} | {fmt(b['mean']) if b else 'n/a'} ({fmt(b['sd']) if b else '-'}) |")
+        return lines
+
 
     # ---- checksum files (U-08 layout) ----------------------------------
     for rec in checks["records"]:
@@ -260,6 +332,15 @@ def main():
         tr, td, ts_ = total_ratio(sf)
         out += ["", f"## SF{sf_label(sf)} timings (seconds, 5 runs, one warm-up pass)", ""]
         out += timing_table(sf)
+        if sf in boot:
+            out += ["", f"Bootstrap 95% intervals for D/S ({BOOT_B} resamples of the five runs, seed {BOOT_SEED}; rough at n=5): "
+                    + "; ".join(f"{t} {fmt(boot[sf][t][0], 3)} to {fmt(boot[sf][t][1], 3)}" for t in TKEYS)
+                    + f"; total {fmt(boot[sf]['total'][0], 3)} to {fmt(boot[sf]['total'][1], 3)}."]
+            cv_flag = [f"{arm} {t} ({fmt(stats[(arm, sf, t)]['cv'], 0)}%)" for arm in ("duckdb", "spark") for t in TKEYS
+                       if (arm, sf, t) in stats and stats[(arm, sf, t)]["cv"] > 30]
+            if cv_flag:
+                out += ["", f"Cells above the pre-registered 30% CV line: {', '.join(cv_flag)}. "
+                        "Recorded as PREREG.md Deviation 2 (every run in these cells is under 150 ms, where timer and scheduler jitter is of the same order as the measurement)."]
         out += ["", f"Total workload: DuckDB {fmt(td)} s, Spark {fmt(ts_)} s, ratio {fmt(tr, 3)}. "
                 "dbt model times are dbt execution_time per model; they are not ratioed against the engine times."]
     out += ["", "## Checksum verdicts (H3 and determinism)", "",
@@ -313,14 +394,28 @@ def main():
         v, why = verdicts[h]
         s.append(f"- {h}: **{v}**. {why}.")
     s += ["", "## Headline totals (sum of the six transformation means)", "",
-          "| Scale | DuckDB total s | Spark total s | Ratio D/S |",
-          "| --- | --- | --- | --- |"]
+          "| Scale | DuckDB total s | Spark total s | Ratio D/S | Bootstrap 95% interval |",
+          "| --- | --- | --- | --- | --- |"]
+    summary = {"generated_by": "src/make_results.py", "bootstrap": {"resamples": BOOT_B, "seed": BOOT_SEED},
+               "verdicts": {h: {"verdict": v, "why": why} for h, (v, why) in verdicts.items()},
+               "totals": {}, "incremental_saving_pct": {sf_label(sf): round(v["saving_pct"], 4) for sf, v in savings.items()},
+               "faults_caught": ev["total_caught"], "critical_missed": ev["crit_missed"]}
     for sf in SCALES:
         if sf in tested_scales and sf in spark_scales:
             tr, td, ts_ = total_ratio(sf)
-            s.append(f"| SF{sf_label(sf)} | {fmt(td)} | {fmt(ts_)} | {fmt(tr, 3)} |")
+            b = boot.get(sf, {}).get("total")
+            s.append(f"| SF{sf_label(sf)} | {fmt(td)} | {fmt(ts_)} | {fmt(tr, 3)} | {fmt(b[0], 3) + ' to ' + fmt(b[1], 3) if b else 'n/a'} |")
+            summary["totals"][sf_label(sf)] = {"duckdb": round(td, 6), "spark": round(ts_, 6), "ratio": round(tr, 6),
+                                               "ratio_ci95": [round(x, 6) for x in b] if b else None,
+                                               "per_transformation_ci95": {t: [round(x, 6) for x in boot[sf][t]] for t in TKEYS} if sf in boot else None}
         else:
-            s.append(f"| SF{sf_label(sf)} | not tested | not tested | n/a |")
+            s.append(f"| SF{sf_label(sf)} | not tested | not tested | n/a | n/a |")
+    s += ["", "The intervals resample the five measured runs per cell; with n=5 they describe run-to-run spread on this machine, not a population.",
+          "", "## Not yet measured", "",
+          "SF10 was not run on the machine of record, so H2 (the crossover question) and H6 have no verdict. "
+          "Under PREREG.md Section 2 the study does not pass until every hypothesis holds; it is incomplete, not failed. "
+          "No second reviewer has signed REVIEW.md yet, so review status is UNVERIFIED. What was checked is listed in AUDIT.md."]
+    (RESULTS / "verdicts.json").write_text(json.dumps(summary, indent=2) + "\n")
     (ROOT / "RESULTS.md").write_text("\n".join(s) + "\n")
 
     print(json.dumps({h: verdicts[h][0] for h in verdicts}, indent=2))
