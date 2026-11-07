@@ -11,3 +11,11 @@ sql/dbt/dbt_packages/
 .venv/
 data/.tmp*/
 *.duckdb.wal
+sql/dbt/logs/
+sql/dbt/.user.yml
+target/
+
+# site build
+site/node_modules/
+site/dist/
+site/.rubric/
