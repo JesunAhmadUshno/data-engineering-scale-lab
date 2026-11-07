@@ -5,7 +5,11 @@ desl:
       type: duckdb
       path: "{{ env_var('DBT_DUCKDB_PATH', 'desl.duckdb') }}"
       schema: main
-      threads: 2
+      # Defaults are the settings the SF0.1 and SF1 runs were measured
+      # under. The SF10 runs override both through the environment after
+      # two builds were killed during the largest join model under
+      # memory contention on this machine (DECISIONS.md D14).
+      threads: "{{ env_var('DBT_THREADS', '2') | int }}"
       settings:
-        memory_limit: "2.2GB"
+        memory_limit: "{{ env_var('DBT_MEMORY_LIMIT', '2.2GB') }}"
         preserve_insertion_order: false

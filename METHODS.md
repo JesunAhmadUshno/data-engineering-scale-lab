@@ -62,7 +62,12 @@ identical base data.
   log: DuckDB memory limit 2.2 GB, 4 threads, spill to local disk; Spark
   driver memory 1600 MB, shuffle partitions 8 (16 at SF10), adaptive
   query execution on, task results returned directly (see DECISIONS.md
-  D3 for why that setting exists on this machine).
+  D3 for why that setting exists on this machine). One exception: the
+  dbt arm at SF10 runs with one thread and a 1.8 GB memory cap instead
+  of two threads and 2.2 GB, after two builds were killed during the
+  largest join model under memory contention (DECISIONS.md D14). dbt
+  times are never compared across scales, and the SF10 incremental
+  comparison (H6) uses the same settings on both sides.
 
 ## Correctness protocol
 

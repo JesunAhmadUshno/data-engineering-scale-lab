@@ -40,39 +40,12 @@ def total_rows(glob):
     return n
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--sf", type=float, required=True)
-    args = ap.parse_args()
-    sf = args.sf
+def persist(records, sf):
+    """Merge records into checksums.json and refresh this scale's verdicts.
 
-    records = []
-    for arm in ARMS:
-        for run in range(1, 6):
-            for spec in TRANSFORMATIONS:
-                glob = output_glob(arm, sf, run, spec["key"])
-                if not Path(glob.replace("*.parquet", "")).exists() and not list(
-                    Path(glob).parent.glob("*")
-                ):
-                    continue
-                try:
-                    rows_total = total_rows(glob)
-                except Exception:
-                    continue
-                partial = sf >= 10 and run not in (1, 5)
-                if partial:
-                    digest, rows_checked = canonical_checksum(
-                        glob, spec["key"], limit=PARTIAL_LIMIT)
-                else:
-                    digest, rows_checked = canonical_checksum(glob, spec["key"])
-                records.append({
-                    "arm": arm, "sf": sf, "transformation": spec["key"],
-                    "run": run, "sha256": digest, "rows": rows_total,
-                    "rows_checked": rows_checked, "partial": partial,
-                })
-                print(f"{arm} sf{sf_label(sf)} run{run} {spec['key']} "
-                      f"{digest[:12]} rows={rows_total} partial={partial}", flush=True)
-
+    Called after every arm (D18) so a host restart loses at most the arm
+    in progress; the merge is by record key, so reruns compose.
+    """
     path = RESULTS / "checksums.json"
     doc = {"records": [], "verdicts": {}}
     if path.exists():
@@ -104,6 +77,47 @@ def main():
             }
     doc["verdicts"] = verdicts
     path.write_text(json.dumps(doc, indent=2) + "\n")
+    return verdicts
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--sf", type=float, required=True)
+    ap.add_argument("--arms", default=",".join(ARMS),
+                    help="comma-separated subset of arms to collect")
+    args = ap.parse_args()
+    sf = args.sf
+    arms = tuple(a.strip() for a in args.arms.split(",") if a.strip())
+
+    records = []
+    for arm in arms:
+        for run in range(1, 6):
+            for spec in TRANSFORMATIONS:
+                glob = output_glob(arm, sf, run, spec["key"])
+                if not Path(glob.replace("*.parquet", "")).exists() and not list(
+                    Path(glob).parent.glob("*")
+                ):
+                    continue
+                try:
+                    rows_total = total_rows(glob)
+                except Exception:
+                    continue
+                partial = sf >= 10 and run not in (1, 5)
+                if partial:
+                    digest, rows_checked = canonical_checksum(
+                        glob, spec["key"], limit=PARTIAL_LIMIT)
+                else:
+                    digest, rows_checked = canonical_checksum(glob, spec["key"])
+                records.append({
+                    "arm": arm, "sf": sf, "transformation": spec["key"],
+                    "run": run, "sha256": digest, "rows": rows_total,
+                    "rows_checked": rows_checked, "partial": partial,
+                })
+                print(f"{arm} sf{sf_label(sf)} run{run} {spec['key']} "
+                      f"{digest[:12]} rows={rows_total} partial={partial}", flush=True)
+        persist(records, sf)
+
+    verdicts = persist(records, sf)
 
     bad = [k for k, v in verdicts.items()
            if k.startswith(f"sf{sf_label(sf)}:") and not v["arms_agree_run1"]]

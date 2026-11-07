@@ -75,6 +75,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sf", type=float, required=True)
     ap.add_argument("--runs", type=int, default=5)
+    ap.add_argument("--start-run", type=int, default=1,
+                    help="first run index to execute (DECISIONS.md D15: lets "
+                         "each run be its own process on a host that "
+                         "restarts during long chains)")
     ap.add_argument("--out-root", default="outputs")
     args = ap.parse_args()
 
@@ -84,7 +88,7 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     vars_dict = {"data_dir": base.as_posix(), "delta_dir": "", "affected_dates_path": ""}
 
-    for run in range(1, args.runs + 1):
+    for run in range(args.start_run, args.runs + 1):
         db_path = work / f"build_run{run}.duckdb"
         if db_path.exists():
             db_path.unlink()
