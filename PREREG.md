@@ -253,3 +253,16 @@ hidden: session setup overhead is still measured and reported separately
 (25.3 s for the Spark session at SF0.1), and the pre-refinement run log
 is kept at results/run_log_pre_warmup.jsonl. The five-run count, the
 cells, and the thresholds do not change.
+
+Deviation 2 (2026-11-07, reporting): two DuckDB cells end above the 30
+percent CV line of Section 7 and were not re-run: SF0.1 T3 (CV 36
+percent, five runs between 38 and 79 ms) and SF1 T6 (CV 41 percent, five
+runs between 55 and 142 ms). Reason: every run in both cells is under 150
+ms, where timer and scheduler jitter on a shared 4-core VM is of the same
+order as the measurement; METHODS.md already said so, but the protocol
+asks for a re-run after the cause is found and none was made, so this is
+recorded here as a deviation rather than left in METHODS.md. Effect on
+the conclusion: none on H1. Both cells are the smallest terms of the
+total workload sums (about 0.05 s of 1.48 s at SF0.1 and 0.10 s of 16.27
+s at SF1), and their D/S ratios (0.025 and 0.082) sit far under the 0.5
+line even at the top of their bootstrap intervals (results/results.md).
