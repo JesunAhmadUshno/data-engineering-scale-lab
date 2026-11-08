@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "data-engineering-scale-lab: DuckDB, Spark local mode and dbt on identical transformations from SF0.1 to SF10, a pre-registered scale study"
+authors:
+  - family-names: Ushno
+    given-names: Jesun Ahmad
+repository-code: "https://github.com/JesunAhmadUshno/data-engineering-scale-lab"
+license: Apache-2.0
+date-released: 2026-11-08

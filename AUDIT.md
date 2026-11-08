@@ -114,12 +114,12 @@ see REVIEW.md.
   generated value, including the six SF10 ratios, the 18 of 18 checksum
   verdicts, the three savings, and the 10 of 10 gate matrix. The claim
   stands as written.
-- Final grade: 7,250 of 10,000, floored and itemized. Deductions:
-  SF30 cut as a machine limit, -400; Spark local mode only, no
-  cluster, -500; co-tenant load during SF10 with three cell CVs above
-  30%, -500; seven VM restarts across the SF10 sequence, -250; dbt
-  SF10 thread and memory settings changed under D14, -200; warm-up
-  pass deviation from the original preregistration text (Deviation 1,
-  disclosed, pre-refinement log kept), -150; checksum collection took
-  three attempts and a persistence patch (D18), -150; no second
-  reviewer, U-12 still open, -600.
+- Known weaknesses at build close (scoring is internal and is not
+  published): SF30 cut as a machine limit; Spark local mode only, no
+  cluster; co-tenant load during SF10 with three cell CVs above 30%;
+  seven VM restarts across the SF10 sequence; dbt SF10 thread and
+  memory settings changed under D14; warm-up pass deviation from the
+  original preregistration text (Deviation 1, disclosed, pre-refinement
+  log kept); checksum collection took three attempts and a persistence
+  patch (D18); no second reviewer, U-12 still open. REPORT.md carries
+  the threats and open gaps in full.
