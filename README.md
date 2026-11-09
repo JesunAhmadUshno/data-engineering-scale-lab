@@ -113,9 +113,11 @@ supported: 18 of 18 (scale, transformation) cells agree across all
 three arms on run 1, and run 5 determinism holds everywhere. H4 is
 supported: every late-data scenario checksum equals the full-refresh
 comparator at every tested scale. H5 is supported: 10 of 10 faults
-caught, zero missed critical faults. H6 is partially supported: the
-incremental saving is 87.1% at SF10, but SF1 also exceeds 50% (70.5%),
-where H6 predicted small scales stay below it; SF0.1 is 23.2%.
+caught, zero missed critical faults. H6 is refuted under the locked
+rule: the incremental saving is 87.1% at SF10, but SF1 also exceeds 50%
+(70.5%), where H6 predicted small scales stay below it; SF0.1 is 23.2%.
+A post-lock three-way reading would call this partially supported; it
+is not the registered rule (PREREG.md Deviation 3).
 
 ## Results table
 

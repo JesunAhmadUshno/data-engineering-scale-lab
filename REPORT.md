@@ -38,7 +38,7 @@ rules are METHODS.md; the choices made on the way are DECISIONS.md.
 | H3 Identical checksums across arms | Supported | 18 of 18 (scale, transformation) cells agree on run 1; run 5 reproduces run 1 |
 | H4 Incremental equals full refresh under late data | Supported | S1, S2, S3, S3b equal the comparator at SF0.1, SF1, SF10 |
 | H5 Gates catch at least 50% of faults, zero critical missed | Supported | 10 of 10 faults caught, zero critical missed (results/gate_log.jsonl) |
-| H6 Incremental saving above 50% only at SF10 | Partially supported (miss) | 87.1% at SF10, but SF1 is 70.5% (SF0.1 23.2%) |
+| H6 Incremental saving above 50% only at SF10 | Refuted under the locked rule (miss) | SF1 70.5% > 50%; 87.1% at SF10, SF0.1 23.2%. Post-lock reading: partially supported (PREREG.md Deviation 3) |
 
 Intervals are bootstrap 95% percentile intervals over the five runs per
 cell (2,000 resamples, seed 20261106); at n=5 they describe run-to-run
@@ -52,8 +52,9 @@ whole. These are measured outcomes, reported as measured.
 
 - H2 refuted: no transformation reached the 1.5 line at SF10. The claim
   stops at SF10; it is not a proof that no crossover exists.
-- H6 partially supported: SF1 already saves more than 50%, against the
-  prediction.
+- H6 refuted under the locked rule: SF1 already saves more than 50%,
+  against the prediction. "Partially supported" was a post-lock category
+  (PREREG.md Deviation 3).
 - PREREG.md Section 7 says a cell above 30% CV is unusable and is
   re-run after the cause is found. Five DuckDB cells end above that
   line and were not re-run: SF0.1 T3 and SF1 T6 (recorded as Deviation
@@ -127,7 +128,7 @@ added the review; those fixes are also listed in CHANGELOG.md.
 | Reproducibility | Lockfile, CI checksum gate, generated results, decision-rule checks |
 | Threats to validity | Stated in METHODS.md, PREREG.md and on the dashboard |
 | Related work | RESEARCH.md cites primary docs and DuckDB's SIGMOD paper; thin on prior benchmarks |
-| Limitations and completeness | Every hypothesis has a verdict up to SF10 (H2 refuted, H6 partially supported); SF30, a cluster and a second reviewer remain |
+| Limitations and completeness | Every hypothesis has a verdict up to SF10 (H2 and H6 refuted); SF30, a cluster and a second reviewer remain |
 
 ### Research question
 
@@ -145,10 +146,15 @@ operationalisation is in METHODS.md and src/make_results.py.
 Fixed in this change: H6 was reported only as "Not yet measured", which
 hid that the SF1 saving (70.5%) already breaks the pre-registered clause
 that the saving stays at or below 50% at SF1. make_results.py, RESULTS.md
-and the dashboard now say so, and that the best possible H6 verdict is
-Partially supported. The rule itself is unchanged. With SF10 now
-measured, that is the verdict H6 received: 87.1% at SF10 meets the
-large-scale clause, SF1's 70.5% breaks the small-scale one.
+and the dashboard now say so. With SF10 measured, 87.1% at SF10 meets
+the large-scale clause and SF1's 70.5% breaks the small-scale one.
+
+Fixed by the independent review (2026-11-08): that outcome had been
+labelled Partially supported, a category added after the lock. The
+locked rule is binary, so H6 is Refuted; the generator, results and
+dashboard now say so (PREREG.md Deviation 3). METHODS.md no longer
+claims the decision rules predate the SF1 runs: they were committed
+with the SF1 results (b9b1756), before SF10.
 
 ### Method
 
@@ -258,7 +264,8 @@ The gap that most weakened this criterion before SF10, SF10 not run, is closed: 
 three arms ran five times at SF10, checksums agree in 18 of 18 cells,
 and the SF10 incremental cycle ran (DECISIONS.md D14 to D18). Every
 hypothesis now has a verdict: H1, H3, H4 and H5 supported, H2 refuted
-(no crossover inside the ladder tested), H6 partially supported. Under
+(no crossover inside the ladder tested), H6 refuted under the locked
+rule (SF1 70.5% > 50%). Under
 PREREG.md Section 2 the study therefore does not pass as a whole; that
 is a measured outcome, not an incomplete one. The SF10 sequence carried
 costs that are disclosed rather than hidden: dbt thread and memory
