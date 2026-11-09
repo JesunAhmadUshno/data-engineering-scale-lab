@@ -81,6 +81,6 @@ assert.notEqual(await sha256Hex(a), await sha256Hex(canonicalCsv(rows.map((r) =>
 
 // 7. Threats and roadmap are read from the study's own markdown.
 assert.ok(mdList(R('METHODS.md'), '## Threats to validity').length >= 4);
-assert.ok(mdList(R('ROADMAP.md'), 'in evidence order.').length >= 5);
+assert.ok(mdList(R('REPORT.md'), 'in evidence order.').length >= 5);
 
 console.log('results ok', { H: Object.values(ev.verdicts).map((v) => v[0]).join(' / '), sf01: ref.totals['0.1'].ratio, sf1: ref.totals['1'].ratio, sf10: ref.totals['10'].ratio });

@@ -2,7 +2,11 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   sf01-checksum-gate:
@@ -47,6 +51,12 @@ jobs:
           print("tpch extension OK", con.execute("SELECT COUNT(*) FROM lineitem").fetchone())
           EOF
 
+      - name: Layout, lock and no-public-score tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Results regenerate unchanged from the evidence
+        run: python src/make_results.py && git diff --exit-code RESULTS.md results/ run_log.md
+
       - name: SQL parity (U-07)
         run: python src/check_sql_parity.py
 
@@ -57,3 +67,18 @@ jobs:
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
         run: make ci-check PY=python
+
+  site:
+    name: Dashboard build and browser-computation check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+        working-directory: site
+      - run: npm run build
+        working-directory: site
