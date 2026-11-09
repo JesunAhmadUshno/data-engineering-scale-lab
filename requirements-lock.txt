@@ -34,7 +34,7 @@ orderly-set==5.5.0
 packaging==26.3
 parsedatetime==2.6
 pathspec==1.0.4
-protobuf==6.33.6
+protobuf==7.36.2
 py4j==0.10.9.9
 pydantic==2.14.3
 pydantic_core==2.50.4
