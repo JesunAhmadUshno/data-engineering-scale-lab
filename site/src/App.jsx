@@ -186,11 +186,11 @@ function Hypotheses() {
   return (
     <section id="prereg" className="card window reveal" data-title="prereg.md — RQ1 and H1–H6">
       <p className="eyebrow">Hypothesis board · verdicts computed in your browser</p>
-      <h2>Four hypotheses hold. At <em>SF10</em>, H2 is refuted and H6 holds only in part.</h2>
+      <h2>Four hypotheses hold. H2 is refuted at <em>SF10</em>, and H6 is refuted under the locked rule.</h2>
       <p className="sub">
         RQ1 asks at what data scale, if any, local Spark beats DuckDB on identical transformations, and what incremental dbt models with quality gates cost and catch.
         Each card applies the decision rule from <a href={blob('METHODS.md')}>METHODS.md</a> to the recorded logs, using a JavaScript port of <a href={blob('src/make_results.py')}>make_results.py</a>.
-        The build fails if any verdict or reason differs from the Python output. PREREG Section 2 says the study passes only when every hypothesis holds; with H2 refuted and H6 partially supported, it does not pass as a whole, and the verdicts stand as measured.
+        The build fails if any verdict or reason differs from the Python output. PREREG Section 2 says the study passes only when every hypothesis holds; with H2 and H6 refuted, it does not pass as a whole, and the verdicts stand as measured.
       </p>
       <div className="hgrid">
         {cards.map(([h, rule, measured]) => (
@@ -511,7 +511,7 @@ function LateData() {
           <div className="head" style={{ marginBottom: 6 }}><h3>What this does to H6</h3><span className={`pill ${VPILL[EV.verdicts.H6[0]]}`}>{EV.verdicts.H6[0]}</span></div>
           <p className="hint" style={{ margin: 0, fontSize: 13 }}>
             H6 predicted a saving of at most {RULES.h6Saving}% at SF0.1 and SF1 and above {RULES.h6Saving}% only at SF10. SF10 fits ({pct1(sav['10'].saving_pct)}) and so does SF0.1 ({pct1(sav['0.1'].saving_pct)}), but SF1 is already {pct1(sav['1'].saving_pct)}.
-            The large-scale half of the prediction holds and the small-scale half does not, hence partially supported. Each figure is a single S3 run with no spread.
+            The large-scale half of the prediction holds and the small-scale half does not. The locked rule needs both, so H6 is refuted; a post-lock reading would call it partially supported (PREREG Deviation 3). Each figure is a single S3 run with no spread.
           </p>
         </div>
       </div>
@@ -583,7 +583,7 @@ function Threats() {
   const reviewOpen = /Reviewer: \(open\)/.test(reviewMd);
   const own = [
     `H2 is refuted only inside the ladder tested: no crossover up to SF10 (best D/S ${f3(BEST10[1])}). SF30 was cut before pre-registration as a machine limit, so nothing here says what happens above SF10.`,
-    'With H2 refuted and H6 partially supported, the study does not pass its own all-hypotheses rule (PREREG Section 2).',
+    'With H2 and H6 refuted, the study does not pass its own all-hypotheses rule (PREREG Section 2).',
     `The H6 savings and every late-data scenario rest on one run per scale; the timing cells have ${N_RUNS} runs each and setup overhead one, so there are no significance tests, only means, SDs, CVs and bootstrap intervals.`,
     `${HIGH_CV.length} DuckDB cells at SF0.1 and SF1 (${HIGH_CV.join(', ')}) exceed the ${RULES.cvLine}% CV line and were not re-run (PREREG Deviation 2).`,
     `${HIGH_CV10.length} DuckDB cells at SF10 (${HIGH_CV10.join(', ')}) also exceed it, recorded under co-tenant load on the same VM and across VM restarts in the SF10 sequence (AUDIT.md).`,
