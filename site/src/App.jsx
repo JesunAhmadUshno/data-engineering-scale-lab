@@ -113,7 +113,7 @@ function Seg({ label, options, value, onChange }) {
 export default function App() {
   useReveal();
   return (
-    <div className="wrap">
+    <div className="wrap"><a className="skip" href="#top">Skip to content</a>
       <MenuBar />
       <div className="glow" aria-hidden="true" />
       <Hero />
@@ -130,7 +130,7 @@ export default function App() {
         <p>Data derived from TPC-H with DuckDB's tpch extension; not comparable to official TPC results. The late delta is synthetic. Code: Apache-2.0.</p>
         <p>Recorded with DuckDB {versions.duckdb}, Spark {versions.spark}, dbt Core {versions.dbt_core} with dbt-duckdb {versions.dbt_duckdb}, Python {versions.python}, {versions.java.split(' ').slice(0, 3).join(' ').replace(/"/g, '')}.</p>
         <p>Every number on this page is read from <code>results/</code> at build time or computed in your browser from those files; nothing here is a new measurement.</p>
-      </footer>
+      <nav className="support" aria-label="Support this work"><a href="https://github.com/sponsors/JesunAhmadUshno">Sponsor this work</a><a href="https://github.com/sponsors/JesunAhmadUshno">Donate</a><a href="https://buymeacoffee.com/jesun">Buy Me a Coffee</a><a href="https://calendly.com/jesunahmadushno/30min">Work with me</a></nav></footer>
     </div>
   );
 }
@@ -139,7 +139,7 @@ function Hero() {
   const b01 = bootstrapRatios(STATS, 0.1).total, b1 = bootstrapRatios(STATS, 1).total, b10 = bootstrapRatios(STATS, 10).total;
   const cv = Object.values(checks.verdicts);
   return (
-    <header className="card hero window" id="top" data-title="data-engineering-scale-lab — README.md">
+    <header className="card hero window" id="top" data-title="data-engineering-scale-lab - README.md">
       <div className="head">
         <p className="eyebrow">Pre-registered study · 3 arms · recorded runs</p>
         <span className="pill warn">Derived from TPC-H, not comparable to official TPC results</span>
@@ -184,7 +184,7 @@ function Hypotheses() {
     ['H6', `Incremental saving > ${RULES.h6Saving}% at SF10, ≤ ${RULES.h6Saving}% at SF0.1 and SF1`, `SF0.1 ${pct1(sav['0.1'].saving_pct)}, SF1 ${pct1(sav['1'].saving_pct)}, SF10 ${pct1(sav['10'].saving_pct)}`],
   ];
   return (
-    <section id="prereg" className="card window reveal" data-title="prereg.md — RQ1 and H1–H6">
+    <section id="prereg" className="card window reveal" data-title="prereg.md - RQ1 and H1–H6">
       <p className="eyebrow">Hypothesis board · verdicts computed in your browser</p>
       <h2>Four hypotheses hold. H2 is refuted at <em>SF10</em>, and H6 is refuted under the locked rule.</h2>
       <p className="sub">
@@ -227,7 +227,7 @@ function ScaleBench() {
   const flaggedMax = Math.max(0, ...flaggedCells.flatMap((f) => f.c.values));
   const h = hover;
   return (
-    <section id="bench" className="card window reveal" data-title="scale_bench.app — recorded replay">
+    <section id="bench" className="card window reveal" data-title="scale_bench.app - recorded replay">
       <div className="head">
         <div>
           <p className="eyebrow">Recorded timings · not a live run</p>
@@ -343,7 +343,7 @@ function SessionCost() {
   const line = (arm) => Array.from({ length: maxJ }, (_, i) => `${x(i + 1)},${y(r[arm].setup + (i + 1) * r[arm].perJob)}`).join(' ');
   const toggle = (t) => setChosen((c) => (c.includes(t) ? c.filter((k) => k !== t) : TKEYS.filter((k) => c.includes(k) || k === t)));
   return (
-    <section id="cost" className="card window reveal" data-title="session_cost.calc — arithmetic on recorded means">
+    <section id="cost" className="card window reveal" data-title="session_cost.calc - arithmetic on recorded means">
       <p className="eyebrow">Calculator · no new measurement</p>
       <h2>Spark’s start-up is not the whole story: at SF{sf} it is also <em>{r.steadyRatio < 1 ? 'slower per job' : 'not faster per job'}</em>.</h2>
       <p className="sub">
@@ -385,7 +385,7 @@ function Ledger() {
   const cells = Object.entries(checks.verdicts);
   const rowsOf = (k) => { const [s, t] = k.split(':'); return checks.records.find((r) => `sf${+r.sf}` === s && r.transformation === t && r.run === 1)?.rows; };
   return (
-    <section id="ledger" className="card window reveal" data-title={`checksum_ledger.sha256 — ${cells.length} cells × 3 arms`}>
+    <section id="ledger" className="card window reveal" data-title={`checksum_ledger.sha256 - ${cells.length} cells × 3 arms`}>
       <p className="eyebrow">Recorded checksums · H3</p>
       <h2>Three engines, one answer: <em>identical bytes</em> in every cell.</h2>
       <p className="sub">
@@ -422,7 +422,7 @@ function Faults() {
   const [sel, setSel] = useState('F01');
   const f = EV.faults, row = f.rows.find((r) => r.id === sel);
   return (
-    <section id="faults" className="card window reveal" data-title="fault_matrix.dbt — F01 to F10">
+    <section id="faults" className="card window reveal" data-title="fault_matrix.dbt - F01 to F10">
       <div className="head">
         <div>
           <p className="eyebrow">Recorded gate runs · H5</p>
@@ -473,7 +473,7 @@ function LateData() {
   const scen = ['full_refresh', 'S1', 'S2', 'S3', 'S3b'];
   const max = Math.max(...Object.values(sav).map((s) => s.full));
   return (
-    <section id="late" className="card window reveal" data-title="late_data.replay — H4 and H6">
+    <section id="late" className="card window reveal" data-title="late_data.replay - H4 and H6">
       <p className="eyebrow">Recorded incremental runs · synthetic late delta</p>
       <h2>Late data never broke the answer. The saving was <em>bigger than predicted</em> at SF1.</h2>
       <p className="sub">
@@ -535,7 +535,7 @@ function Protocol() {
   const shuffle = () => setOrder((o) => { const n = [...o]; n.push(n.shift()); [n[0], n[2]] = [n[2], n[0]]; return n; });
   const cols = ['order_date', 'orders_count', 'gross_revenue'];
   return (
-    <section id="protocol" className="card window reveal" data-title="checksum_protocol.play — live SHA-256">
+    <section id="protocol" className="card window reveal" data-title="checksum_protocol.play - live SHA-256">
       <div className="head">
         <div>
           <p className="eyebrow">Live in your browser · crypto.subtle</p>
@@ -593,7 +593,7 @@ function Threats() {
   return (
     <section id="threats" className="reveal">
       <div className="grid2 tw">
-        <div className="card window" data-title="threats.txt — limits of this evidence">
+        <div className="card window" data-title="threats.txt - limits of this evidence">
           <p className="eyebrow">Threats to validity</p>
           <h2>What this study <em>cannot</em> tell you.</h2>
           <ul className="list">
@@ -602,7 +602,7 @@ function Threats() {
             {threats.map((t) => <li key={t}>{t}</li>)}
           </ul>
         </div>
-        <div className="card window" data-title="report.md — what remains">
+        <div className="card window" data-title="report.md - what remains">
           <p className="eyebrow">Roadmap</p>
           <h2>Next evidence, <em>in order</em>.</h2>
           <ol className="list">{roadmap.map((t) => <li key={t}>{t}</li>)}</ol>
