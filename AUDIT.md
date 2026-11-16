@@ -96,9 +96,10 @@ see REVIEW.md.
   (T1); no transformation reaches 1.5, so no crossover is observed
   inside the ladder tested. The claim stops at the ladder, as the
   overclaim guard requires.
-- H6 verdict: partially supported. The saving is 87.1% at SF10 (above
-  the 50% line), but SF1 also exceeds 50% (70.5%), where H6 predicted
-  small scales stay below it; SF0.1 is 23.2%.
+- H6 verdict: refuted under the locked rule (PREREG.md Deviation 3;
+  first recorded here as partially supported, a post-lock category). The
+  saving is 87.1% at SF10 (above the 50% line), but SF1 also exceeds 50%
+  (70.5%), where H6 predicted small scales stay below it; SF0.1 is 23.2%.
 - SF10 variation: three DuckDB cells carry CVs above 30% (T4 47%, T3
   36%, T5 33%). Cause on record: a co-tenant workload on the same VM
   (load average peaks of 28 on 4 cores) and seven VM restarts across

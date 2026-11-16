@@ -26,8 +26,8 @@
       "why": "10 of 10 faults caught; zero missed critical faults"
     },
     "H6": {
-      "verdict": "Partially supported",
-      "why": "incremental saving 87.1% at SF10, but a small scale also exceeds 50% (SF0.1 23.2%, SF1 70.5%)"
+      "verdict": "Refuted",
+      "why": "refuted under the locked rule (SF1 70.5% > 50%); SF10 saves 87.1% and SF0.1 23.2%. The post-lock three-way reading in METHODS.md would call this Partially supported"
     }
   },
   "totals": {
