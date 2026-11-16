@@ -14,7 +14,7 @@ dbt-core-experimental-parser==2.0.11
 dbt-duckdb==1.11.1
 dbt-extractor==0.6.0
 dbt-protos==1.0.615
-deepdiff==8.6.2
+deepdiff==9.1.0
 duckdb==2.0.0
 idna==3.20
 importlib_metadata==10.1.0
