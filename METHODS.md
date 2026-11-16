@@ -114,8 +114,9 @@ every blocked fault.
 ## Hypothesis decision rules (operationalization)
 
 The hypothesis texts are PREREG.md's. The numeric decision rules applied
-to them, fixed in src/make_results.py before the SF1 and SF10 runs were
-seen:
+to them were committed in src/make_results.py together with the SF1
+results (b9b1756) and before the SF10 runs (25480b9). Git history does
+not show them fixed before SF1 was seen.
 
 - H1: total workload ratio (sum of the six transformation means, DuckDB
   over Spark) at most 0.5 at both SF0.1 and SF1 means Supported; at one
@@ -133,9 +134,12 @@ seen:
   critical faults means Supported; anything else means Refuted, with the
   numbers printed either way.
 - H6: incremental saving above 50 percent at SF10 and at most 50 percent
-  at SF0.1 and SF1 means Supported; saving above 50 percent at SF10 but
-  also above 50 percent at a small scale means Partially supported;
-  saving at most 50 percent at SF10 means Refuted.
+  at SF0.1 and SF1 means Supported; anything else means Refuted. This is
+  the binary operational reading locked in PREREG.md (tag proposal-v1).
+  An earlier version of this file added a third outcome, Partially
+  supported, for a saving above 50 percent at SF10 and at a small scale;
+  that category is not in the lock, so it is now reported only as a
+  labelled post-lock reading (PREREG.md Deviation 3).
 
 ## Threats to validity
 

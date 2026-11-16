@@ -232,10 +232,14 @@ def evaluate(run_log, checks, gates, incr):
     if all(sf in savings for sf in (0.1, 1, 10)):
         s10 = savings[10]["saving_pct"]
         small = [savings[0.1]["saving_pct"], savings[1]["saving_pct"]]
-        if s10 > 50 and all(x <= 50 for x in small):
+        # Locked rule (PREREG.md H6, tag proposal-v1) is binary: Supported only when SF10
+        # exceeds 50% AND neither small scale does; anything else is Refuted.
+        over = [f"SF{lab} {fmt(x,1)}% > 50%" for lab, x in (("0.1", small[0]), ("1", small[1])) if x > 50]
+        if s10 > 50 and not over:
             verdicts["H6"] = ("Supported", f"incremental saving {fmt(s10,1)}% at SF10, {fmt(small[0],1)}% at SF0.1 and {fmt(small[1],1)}% at SF1")
         elif s10 > 50:
-            verdicts["H6"] = ("Partially supported", f"incremental saving {fmt(s10,1)}% at SF10, but a small scale also exceeds 50% (SF0.1 {fmt(small[0],1)}%, SF1 {fmt(small[1],1)}%)")
+            verdicts["H6"] = ("Refuted", f"refuted under the locked rule ({', '.join(over)}); SF10 saves {fmt(s10,1)}% and SF0.1 {fmt(small[0],1)}%."
+                              f" The post-lock three-way reading in METHODS.md would call this Partially supported")
         else:
             verdicts["H6"] = ("Refuted", f"incremental saving at SF10 is {fmt(s10,1)}%, not above 50%")
     elif 10 in savings:
@@ -246,8 +250,8 @@ def evaluate(run_log, checks, gates, incr):
         why = "no SF10 incremental timing recorded"
         if over:
             why += (f"; the small-scale clause (saving at most 50% at SF0.1 and SF1) already fails"
-                    f" ({', '.join(over)}), so once SF10 is run the best possible verdict is"
-                    f" Partially supported, never Supported")
+                    f" ({', '.join(over)}), so under the locked rule H6 is"
+                    f" Refuted whatever SF10 shows")
         verdicts["H6"] = ("Not yet measured", why)
 
     boot = {sf: bootstrap_ratios(stats, sf) for sf in spark_scales
