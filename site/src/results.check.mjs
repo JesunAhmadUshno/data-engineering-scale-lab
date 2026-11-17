@@ -24,7 +24,7 @@ for (const [h, { verdict, why }] of Object.entries(ref.verdicts)) {
   assert.equal(ev.verdicts[h][1], why, `${h} reason`);
 }
 assert.deepEqual(Object.fromEntries(Object.entries(ev.verdicts).map(([h, [v]]) => [h, v])),
-  { H1: 'Supported', H2: 'Refuted', H3: 'Supported', H4: 'Supported', H5: 'Supported', H6: 'Partially supported' });
+  { H1: 'Supported', H2: 'Refuted', H3: 'Supported', H4: 'Supported', H5: 'Supported', H6: 'Refuted' });
 // SF10 is in the logs: the page's SF10 figures (H2's best ratio, the SF10 total, the H6 saving) are pinned too.
 const best10 = TKEYS.map((t) => cell(ev.stats, 'duckdb', 10, t).mean / cell(ev.stats, 'spark', 10, t).mean).sort((x, y) => y - x)[0];
 assert.ok(ref.verdicts.H2.why.includes(`best ${best10.toFixed(3)}`), 'H2 best SF10 ratio');
