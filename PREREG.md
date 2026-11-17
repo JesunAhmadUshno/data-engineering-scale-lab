@@ -266,3 +266,17 @@ the conclusion: none on H1. Both cells are the smallest terms of the
 total workload sums (about 0.05 s of 1.48 s at SF0.1 and 0.10 s of 16.27
 s at SF1), and their D/S ratios (0.025 and 0.082) sit far under the 0.5
 line even at the top of their bootstrap intervals (results/results.md).
+
+Deviation 3 (2026-11-08, reporting, from the independent review): H6
+was reported as "Partially supported" under a three-way rule that first
+appeared in METHODS.md and src/make_results.py in b9b1756, after the
+lock. The locked operational reading above is binary: the saving
+exceeds 50% at SF10 and does not exceed 50% at SF0.1 or SF1. SF1
+measured 70.5%, so under the locked rule H6 is Refuted. The generator
+now applies the locked rule; "partially supported" survives only as a
+labelled post-lock reading. The same review narrowed a METHODS.md claim:
+the decision rules were committed with the SF1 results (b9b1756) and
+before the SF10 runs (25480b9), not before SF1. Effect on the
+conclusion: H6 moves from Partially supported to Refuted; the study
+already failed PREREG Section 2 (H2 refuted), so the study-level outcome
+does not change.

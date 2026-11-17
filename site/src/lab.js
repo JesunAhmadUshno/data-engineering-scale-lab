@@ -158,14 +158,16 @@ export function evaluate({ runLog, checks, gates, incr }) {
   const sav = incrementalSavings(incr), S = (sf) => sav[sf]?.saving_pct, L = RULES.h6Saving;
   if (['0.1', '1', '10'].every((sf) => sf in sav)) {
     const s10 = S('10'), small = [S('0.1'), S('1')];
-    if (s10 > L && small.every((x) => x <= L)) v.H6 = ['Supported', `incremental saving ${fmt(s10, 1)}% at SF10, ${fmt(small[0], 1)}% at SF0.1 and ${fmt(small[1], 1)}% at SF1`];
-    else if (s10 > L) v.H6 = ['Partially supported', `incremental saving ${fmt(s10, 1)}% at SF10, but a small scale also exceeds 50% (SF0.1 ${fmt(small[0], 1)}%, SF1 ${fmt(small[1], 1)}%)`];
+    // Locked rule (PREREG.md H6) is binary: any small scale above the line means Refuted.
+    const over = [['0.1', small[0]], ['1', small[1]]].filter(([, x]) => x > L).map(([sf, x]) => `SF${sf} ${fmt(x, 1)}% > 50%`);
+    if (s10 > L && !over.length) v.H6 = ['Supported', `incremental saving ${fmt(s10, 1)}% at SF10, ${fmt(small[0], 1)}% at SF0.1 and ${fmt(small[1], 1)}% at SF1`];
+    else if (s10 > L) v.H6 = ['Refuted', `refuted under the locked rule (${over.join(', ')}); SF10 saves ${fmt(s10, 1)}% and SF0.1 ${fmt(small[0], 1)}%. The post-lock three-way reading in METHODS.md would call this Partially supported`];
     else v.H6 = ['Refuted', `incremental saving at SF10 is ${fmt(s10, 1)}%, not above 50%`];
   } else if ('10' in sav) v.H6 = ['Inconclusive', 'SF10 saving is recorded but a small-scale saving is missing'];
   else {
     const over = ['0.1', '1'].filter((sf) => sf in sav && S(sf) > L).map((sf) => `SF${sf} ${fmt(S(sf), 1)}%`);
     let why = 'no SF10 incremental timing recorded';
-    if (over.length) why += `; the small-scale clause (saving at most 50% at SF0.1 and SF1) already fails (${over.join(', ')}), so once SF10 is run the best possible verdict is Partially supported, never Supported`;
+    if (over.length) why += `; the small-scale clause (saving at most 50% at SF0.1 and SF1) already fails (${over.join(', ')}), so under the locked rule H6 is Refuted whatever SF10 shows`;
     v.H6 = ['Not yet measured', why];
   }
   return { verdicts: v, stats, savings: sav, faults: f };

@@ -34,7 +34,7 @@ def verdicts(rl=run_log, ch=checks, ga=gates, inc=incr):
 # ---- 1. known answer -------------------------------------------------------
 ev = evaluate(run_log, checks, gates, incr)
 assert verdicts() == {"H1": "Supported", "H2": "Refuted", "H3": "Supported",
-                      "H4": "Supported", "H5": "Supported", "H6": "Partially supported"}, verdicts()
+                      "H4": "Supported", "H5": "Supported", "H6": "Refuted"}, verdicts()
 r01, d01, s01 = ev["total_ratio"](0.1)
 r1, d1, s1 = ev["total_ratio"](1)
 assert (round(d01, 2), round(s01, 2), round(r01, 3)) == (1.48, 11.86, 0.125)
@@ -51,7 +51,7 @@ run_log_small = [r for r in run_log if r["sf"] != 10]
 incr_small = [r for r in incr if r["sf"] != 10]
 v_small = evaluate(run_log_small, checks, gates, incr_small)["verdicts"]
 assert v_small["H2"][0] == "Not yet measured" and v_small["H6"][0] == "Not yet measured", v_small
-assert "best possible verdict is Partially supported" in v_small["H6"][1]
+assert "under the locked rule H6 is Refuted" in v_small["H6"][1]
 lo, hi = ev["boot"][1]["total"]
 assert lo < r1 < hi, (lo, r1, hi)
 # Same PRNG stream as site/src/lab.js (values printed by node for seed 20261106).
@@ -106,7 +106,7 @@ bad_gates = copy.deepcopy(gates)
 next(r for r in bad_gates if r["scenario"] == "F01")["caught"] = False
 assert verdicts(ga=bad_gates)["H5"] == "Refuted"
 
-# H6: an SF10 saving above 50% with SF1 at 70.5% -> Partially supported.
+# H6 (locked binary rule): an SF10 saving above 50% with SF1 at 70.5% -> Refuted.
 def with_sf10_incr(full, inc):
     extra = [{"sf": 10, "scenario": s, "checksums": copy.deepcopy(incr[0]["checksums"])}
              for s in ("full_refresh", "S1", "S2", "S3", "S3b")]
@@ -116,7 +116,8 @@ def with_sf10_incr(full, inc):
     return incr_small + extra
 
 
-assert verdicts(inc=with_sf10_incr(10.0, 2.0))["H6"] == "Partially supported"
+assert verdicts(inc=with_sf10_incr(10.0, 2.0))["H6"] == "Refuted"
+assert "SF1 70.5% > 50%" in evaluate(run_log, checks, gates, with_sf10_incr(10.0, 2.0))["verdicts"]["H6"][1]
 assert verdicts(inc=with_sf10_incr(10.0, 8.0))["H6"] == "Refuted"
 
 print("decision rules ok: H1-H6 match the committed verdicts and every rule branch was exercised")

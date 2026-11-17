@@ -6,6 +6,12 @@ Versions follow Semantic Versioning; no release is tagged yet.
 ## [Unreleased]
 
 ### Changed
+- 2026-11-08 (independent review): H6 is reported as Refuted under the
+  locked binary rule (SF1 70.5% > 50%), not Partially supported, a
+  category added after the lock; make_results.py, the dashboard port and
+  both checks follow, and PREREG.md Deviation 3 records it. METHODS.md
+  now says the decision rules were committed with the SF1 results
+  (b9b1756), before SF10, not before SF1.
 - 2026-11-08: Adopted the portfolio standard v2. README opens with the
   question, headline, field, job family and verdict (Functional). The
   new REPORT.md scores every hypothesis and names the misses and the
