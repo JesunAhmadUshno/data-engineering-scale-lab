@@ -7,7 +7,7 @@ charset-normalizer==3.5.2
 click==8.5.1
 colorama==0.4.6
 daff==1.4.2
-dbt-adapters==1.24.5
+dbt-adapters==1.24.6
 dbt-common==1.39.0
 dbt-core==1.12.6
 dbt-core-experimental-parser==2.0.11
